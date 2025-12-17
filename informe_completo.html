@@ -440,8 +440,11 @@ function getBlobUrlWithSAS() {
 function getBlobUrlWithSASForWrite() {
     if (!AZURE_SAS_TOKEN) return null;
     const url = getBlobUrlForWrite();
+    // El SAS token ya viene con el formato correcto, solo añadirlo con ?
     const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}${AZURE_SAS_TOKEN}`;
+    // Asegurarse de que el token no tenga ? al inicio
+    const cleanToken = AZURE_SAS_TOKEN.startsWith('?') ? AZURE_SAS_TOKEN.substring(1) : AZURE_SAS_TOKEN;
+    return `${url}${separator}${cleanToken}`;
 }
 
 let jsonData = [];
@@ -591,9 +594,31 @@ async function saveToAzure() {
         const jsonContent = JSON.stringify(jsonData, null, '\t');
         const blob = new Blob([jsonContent], { type: 'application/json' });
         
+        console.log('=== DEBUG: Guardando en Azure ===');
+        console.log('URL completa:', blobUrlWithSAS);
+        console.log('Tamaño del contenido:', blob.size, 'bytes');
+        
+        // Primero verificar CORS con OPTIONS (preflight)
+        try {
+            console.log('Verificando CORS...');
+            const optionsResponse = await fetch(blobUrlWithSAS, {
+                method: 'OPTIONS',
+                headers: {
+                    'Origin': window.location.origin,
+                    'Access-Control-Request-Method': 'PUT',
+                    'Access-Control-Request-Headers': 'x-ms-blob-type,content-type,x-ms-version'
+                }
+            });
+            console.log('CORS preflight status:', optionsResponse.status);
+        } catch (corsErr) {
+            console.warn('CORS preflight falló (puede ser normal):', corsErr);
+        }
+        
         // Usar PUT request para subir el blob
+        console.log('Enviando PUT request...');
         const response = await fetch(blobUrlWithSAS, {
             method: 'PUT',
+            mode: 'cors', // Asegurar modo CORS
             headers: {
                 'x-ms-blob-type': 'BlockBlob',
                 'Content-Type': 'application/json',
@@ -602,17 +627,42 @@ async function saveToAzure() {
             body: blob
         });
         
+        console.log('Response status:', response.status);
+        console.log('Response headers:', [...response.headers.entries()]);
+        
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Error ${response.status}: ${errorText}`);
+            console.error('Error response:', errorText);
+            throw new Error(`Error ${response.status}: ${errorText.substring(0, 200)}`);
         }
         
+        console.log('✅ Guardado exitoso');
         alert('✅ Archivo guardado correctamente en Azure Blob Storage');
     } catch (err) {
-        console.error('Error al guardar:', err);
+        console.error('=== ERROR DETALLADO ===');
+        console.error('Error:', err);
+        console.error('URL usada:', blobUrlWithSAS);
+        console.error('Error name:', err.name);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+        
         let errorMsg = `❌ Error al guardar: ${err.message}`;
         
-        if (err.message.includes('403') || err.message.includes('AuthenticationFailed')) {
+        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.name === 'TypeError') {
+            errorMsg += '\n\n⚠️ PROBLEMA DE CORS DETECTADO\n\n';
+            errorMsg += 'SOLUCIÓN: Configura CORS en Azure Portal:\n\n';
+            errorMsg += '1. Azure Portal → Storage Account "webcontrolhoras"\n';
+            errorMsg += '2. Menú: "Seguridad + redes" → "Resource sharing (CORS)"\n';
+            errorMsg += '3. Blob service → "Add" y configura:\n';
+            errorMsg += '   • Allowed origins: *\n';
+            errorMsg += '   • Allowed methods: GET, PUT, OPTIONS\n';
+            errorMsg += '   • Allowed headers: *\n';
+            errorMsg += '   • Exposed headers: *\n';
+            errorMsg += '   • Max age: 3600\n';
+            errorMsg += '4. Guarda y espera 1-2 minutos\n';
+            errorMsg += '5. Abre la consola del navegador (F12) para más detalles\n\n';
+            errorMsg += 'URL que se intentó usar:\n' + blobUrlWithSAS.substring(0, 100) + '...';
+        } else if (err.message.includes('403') || err.message.includes('AuthenticationFailed')) {
             errorMsg += '\n\n⚠️ El SAS token puede haber expirado o no tener permisos de escritura.\nVerifica el token en el código fuente.';
         }
         
