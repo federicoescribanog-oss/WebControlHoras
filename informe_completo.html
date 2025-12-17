@@ -319,6 +319,7 @@
                 <button id="downloadJsonBtn" class="btn-success">💾 Descargar JSON</button>
                 <button id="saveFileBtn" class="btn-warning">📝 Guardar en Azure</button>
                 <span class="file-info" id="fileInfo">data2 -Horas.json</span>
+                <span class="file-info" id="sasStatus" style="font-size:0.75rem;color:var(--text-secondary);"></span>
             </div>
 
             <div class="editor-grid">
@@ -403,7 +404,23 @@
 
 <script>
 // Configuración Azure Blob Storage
-const AZURE_BLOB_URL = 'data2 -Horas.json'; // URL relativa en el mismo $web container
+const BLOB_FILE_NAME = 'data2 -Horas.json';
+// ⚠️ CONFIGURA AQUÍ TU SAS TOKEN: Copia el token completo después del "?" de la URL generada en Azure Portal
+// Ejemplo: 'sv=2022-11-02&ss=b&srt=o&sp=rwc&se=2025-12-31T23:59:59Z&st=2024-01-01T00:00:00Z&spr=https&sig=...'
+const AZURE_SAS_TOKEN = 'sv=2024-11-04&ss=bf&srt=co&sp=rwdlacyx&se=2030-12-30T23:09:50Z&st=2025-12-17T14:54:50Z&spr=https&sig=%2BfUltjSRn2%2BoSN5Lvgs9jVu5LGW2Q%2BGzcxIZC1yAQc8%3D'; // Pega aquí tu SAS token con permisos de escritura (sp=rwc)
+
+// Construir URL completa del blob
+function getBlobUrl() {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/${BLOB_FILE_NAME}`;
+}
+
+function getBlobUrlWithSAS() {
+    if (!AZURE_SAS_TOKEN) return null;
+    const url = getBlobUrl();
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}${AZURE_SAS_TOKEN}`;
+}
 
 let jsonData = [];
 let masterPersons = [];
@@ -507,7 +524,7 @@ function initializeApp(data) {
 
 async function loadFromAzure() {
     try {
-        const response = await fetch(AZURE_BLOB_URL + '?t=' + Date.now()); // Cache bust
+        const response = await fetch(getBlobUrl() + '?t=' + Date.now()); // Cache bust
         if (!response.ok) throw new Error('Error al cargar: ' + response.status);
         const data = await response.json();
         initializeApp(data);
@@ -522,9 +539,58 @@ async function loadFromAzure() {
 }
 
 async function saveToAzure() {
-    // Nota: Para escribir en Azure Blob Storage necesitas un SAS token con permisos de escritura
-    // o usar Azure Functions como proxy
-    alert('⚠️ Para guardar en Azure Blob Storage necesitas configurar un SAS token con permisos de escritura o usar Azure Functions.\n\nPor ahora, usa "Descargar JSON" y sube el archivo manualmente.');
+    // Verificar si hay SAS token configurado
+    if (!AZURE_SAS_TOKEN || AZURE_SAS_TOKEN.trim() === '') {
+        alert('⚠️ No hay SAS token configurado en el código.\n\nPor favor, configura AZURE_SAS_TOKEN en el código fuente.\n\nMientras tanto, puedes usar "Descargar JSON" como alternativa.');
+        return;
+    }
+    
+    const blobUrlWithSAS = getBlobUrlWithSAS();
+    if (!blobUrlWithSAS) {
+        alert('❌ Error: No se pudo construir la URL con SAS token.');
+        return;
+    }
+    
+    // Mostrar indicador de guardado
+    const saveBtn = document.getElementById('saveFileBtn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = '⏳ Guardando...';
+    saveBtn.disabled = true;
+    
+    try {
+        const jsonContent = JSON.stringify(jsonData, null, '\t');
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        
+        // Usar PUT request para subir el blob
+        const response = await fetch(blobUrlWithSAS, {
+            method: 'PUT',
+            headers: {
+                'x-ms-blob-type': 'BlockBlob',
+                'Content-Type': 'application/json',
+                'x-ms-version': '2020-10-02'
+            },
+            body: blob
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+        
+        alert('✅ Archivo guardado correctamente en Azure Blob Storage');
+    } catch (err) {
+        console.error('Error al guardar:', err);
+        let errorMsg = `❌ Error al guardar: ${err.message}`;
+        
+        if (err.message.includes('403') || err.message.includes('AuthenticationFailed')) {
+            errorMsg += '\n\n⚠️ El SAS token puede haber expirado o no tener permisos de escritura.\nVerifica el token en el código fuente.';
+        }
+        
+        alert(errorMsg);
+    } finally {
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+    }
 }
 
 function refreshAll() {
@@ -535,6 +601,18 @@ function refreshAll() {
     renderTable();
     renderTimeline();
     renderEntriesTable();
+    updateSASStatus();
+}
+
+function updateSASStatus() {
+    const statusEl = document.getElementById('sasStatus');
+    if (AZURE_SAS_TOKEN && AZURE_SAS_TOKEN.trim() !== '') {
+        statusEl.textContent = '✓ SAS Token configurado';
+        statusEl.style.color = 'var(--success)';
+    } else {
+        statusEl.textContent = '⚠ SAS Token no configurado - Usa "Descargar JSON"';
+        statusEl.style.color = 'var(--warning)';
+    }
 }
 
 // ========== MASTER LISTS ==========
@@ -1195,7 +1273,10 @@ function renderTimeline() {
 }
 
 // ========== LOAD DATA ON START ==========
-document.addEventListener('DOMContentLoaded', loadFromAzure);
+document.addEventListener('DOMContentLoaded', () => {
+    updateSASStatus();
+    loadFromAzure();
+});
 
 // ========== EVENTS ==========
 document.querySelectorAll('.main-tab').forEach(tab => {
