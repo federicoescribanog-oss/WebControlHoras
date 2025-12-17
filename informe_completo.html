@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Recursos - Logicalis</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;700&display=swap');
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a2234;
+            --accent: #00d4aa;
+            --text-primary: #e8eaed;
+            --text-secondary: #9ca3af;
+            --border: #2d3748;
+            --vacation: #f59e0b;
+            --project: #3b82f6;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
+        .container { max-width: 1800px; margin: 0 auto; padding: 1rem 2rem; }
+        header { text-align: center; margin-bottom: 1rem; padding: 1rem 1.5rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
+        h1 { font-size: 1.8rem; background: linear-gradient(135deg, var(--accent), #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
+        h3 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-primary); }
+        
+        .main-tabs { display: flex; gap: 0; margin-bottom: 1.5rem; }
+        .main-tab { flex: 1; padding: 1rem 1.5rem; background: var(--bg-card); border: 2px solid var(--border); cursor: pointer; font-weight: 600; font-size: 1rem; text-align: center; transition: all 0.2s; color: var(--text-secondary); }
+        .main-tab:first-child { border-radius: 12px 0 0 12px; }
+        .main-tab:last-child { border-radius: 0 12px 12px 0; border-left: none; }
+        .main-tab:hover { background: var(--bg-secondary); color: var(--text-primary); }
+        .main-tab.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+        .main-tab-icon { font-size: 1.2rem; margin-right: 0.5rem; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .upload-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; }
+        .upload-box { background: var(--bg-card); border: 2px dashed var(--border); border-radius: 16px; padding: 3rem; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .upload-box:hover { border-color: var(--accent); background: var(--bg-secondary); }
+        .upload-box.dragover { border-color: var(--accent); background: var(--accent)22; }
+        .upload-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .upload-text { font-size: 1.2rem; margin-bottom: 0.5rem; }
+        .upload-hint { color: var(--text-secondary); font-size: 0.9rem; }
+        #fileInput { display: none; }
+        .or-text { margin: 1.5rem 0; color: var(--text-secondary); }
+        .start-empty-btn { padding: 1rem 2rem; font-size: 1rem; }
+        
+        .main-content { display: none; }
+        .main-content.visible { display: block; }
+        
+        .filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); align-items: flex-start; }
+        .filter-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .filter-group label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
+        select, input, button { padding: 0.5rem 1rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; }
+        input[type="date"] { cursor: pointer; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        button { cursor: pointer; background: var(--accent); color: var(--bg-primary); font-weight: 600; border: none; }
+        button:hover { opacity: 0.9; }
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-warning { background: var(--warning); color: #000; }
+        .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+        
+        .person-selector { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; max-height: 200px; overflow-y: auto; min-width: 220px; }
+        .person-item { display: flex; align-items: center; padding: 0.5rem 0.75rem; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--border); }
+        .person-item:last-child { border-bottom: none; }
+        .person-item:hover { background: var(--bg-card); }
+        .person-item input[type="checkbox"] { margin-right: 0.5rem; accent-color: var(--accent); width: 16px; height: 16px; }
+        .person-item.selected { background: var(--accent)22; }
+        .person-item .person-name { flex: 1; font-size: 0.85rem; }
+        .select-all-btn { padding: 0.4rem 0.75rem; font-size: 0.8rem; margin: 0.5rem; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .stat-card { background: var(--bg-card); padding: 1rem; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
+        .stat-value { font-size: 1.8rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--accent); }
+        .stat-value.vacation { color: var(--vacation); }
+        .stat-value.project { color: var(--project); }
+        .stat-value.danger { color: var(--danger); }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
+        
+        .section { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1rem; overflow: hidden; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-wrap: wrap; gap: 1rem; }
+        .section-header h2 { margin: 0; }
+        .section-content { padding: 0; }
+        
+        .tabs { display: flex; gap: 0.25rem; }
+        .tab { padding: 0.5rem 1rem; background: transparent; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text-secondary); font-weight: 600; font-size: 0.8rem; transition: all 0.2s; }
+        .tab:hover { border-color: var(--accent); color: var(--text-primary); }
+        .tab.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.6rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        th { background: var(--bg-secondary); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 0.7rem; }
+        tr:hover { background: rgba(255,255,255,0.02); }
+        .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+        .badge-vacation { background: var(--vacation); color: #000; }
+        .badge-project { background: var(--project); color: #fff; }
+        .table-wrapper { max-height: 350px; overflow-y: auto; }
+        
+        .timeline-controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        .view-toggle { display: flex; gap: 0; }
+        .view-toggle button { padding: 0.5rem 1rem; font-size: 0.8rem; border-radius: 0; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); font-weight: 600; transition: all 0.2s; }
+        .view-toggle button:first-child { border-radius: 6px 0 0 6px; }
+        .view-toggle button:last-child { border-radius: 0 6px 6px 0; }
+        .view-toggle button:not(:last-child) { border-right: none; }
+        .view-toggle button:hover { background: var(--bg-card); color: var(--text-primary); }
+        .view-toggle button.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+        
+        .timeline-scroll { overflow-x: auto; }
+        .timeline-header { display: flex; position: sticky; top: 0; background: var(--bg-secondary); z-index: 10; border-bottom: 1px solid var(--border); }
+        .timeline-header-name { min-width: 150px; max-width: 150px; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; color: var(--text-secondary); border-right: 1px solid var(--border); position: sticky; left: 0; background: var(--bg-secondary); z-index: 11; }
+        .timeline-header-dates { display: flex; flex: 1; }
+        .timeline-date { flex: 1; min-width: 32px; padding: 0.35rem 0.15rem; text-align: center; font-size: 0.6rem; color: var(--text-secondary); border-right: 1px solid var(--border); }
+        .timeline-date.today { background: var(--accent); color: var(--bg-primary); font-weight: 600; }
+        .timeline-date.month-start { border-left: 2px solid var(--accent); }
+        .timeline-month-label { background: var(--accent); color: var(--bg-primary); font-weight: 700; font-size: 0.7rem; padding: 0.2rem 0.4rem; }
+        
+        .timeline-row { display: flex; border-bottom: 1px solid var(--border); min-height: 40px; }
+        .timeline-row:hover { background: rgba(255,255,255,0.02); }
+        .timeline-row-name { min-width: 150px; max-width: 150px; padding: 0.35rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; border-right: 1px solid var(--border); position: sticky; left: 0; background: var(--bg-card); z-index: 5; }
+        .timeline-row-name.overloaded { background: var(--danger)33; }
+        .timeline-row-cells { display: flex; flex: 1; position: relative; }
+        .timeline-cell { flex: 1; min-width: 32px; border-right: 1px solid var(--border); }
+        .timeline-cell.month-start { border-left: 2px solid var(--accent)55; }
+        .timeline-bar { position: absolute; height: 14px; border-radius: 3px; font-size: 0.5rem; display: flex; align-items: center; padding: 0 3px; overflow: hidden; white-space: nowrap; cursor: pointer; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        .timeline-bar.vacation { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; }
+        .timeline-bar.project { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+        .timeline-bar:hover { filter: brightness(1.1); z-index: 10; height: 18px; }
+        
+        .legend { display: flex; gap: 1rem; margin-left: auto; }
+        .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+        .legend-color { width: 12px; height: 12px; border-radius: 3px; }
+        .legend-color.vacation { background: var(--vacation); }
+        .legend-color.project { background: var(--project); }
+        
+        .report-tabs { display: flex; gap: 0; margin-bottom: 0; }
+        .report-tab { flex: 1; padding: 1rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-bottom: none; cursor: pointer; font-weight: 600; font-size: 1rem; text-align: center; transition: all 0.2s; color: var(--text-secondary); border-radius: 12px 12px 0 0; }
+        .report-tab:not(:first-child) { margin-left: -1px; }
+        .report-tab:hover { background: var(--bg-secondary); color: var(--text-primary); }
+        .report-tab.active { background: var(--bg-secondary); color: var(--accent); border-color: var(--accent); border-bottom: 2px solid var(--bg-secondary); z-index: 1; position: relative; }
+        .report-panel { display: none; }
+        .report-panel.active { display: block; }
+        .report-panel .section { border-radius: 0 0 12px 12px; border-top: 2px solid var(--accent); }
+        
+        .occupancy-timeline { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+        .occupancy-day { width: 28px; height: 28px; border-radius: 4px; font-size: 0.55rem; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; cursor: pointer; transition: transform 0.1s; }
+        .occupancy-day:hover { transform: scale(1.2); z-index: 10; }
+        .occupancy-day .day-num { font-size: 0.5rem; opacity: 0.7; }
+        .occupancy-day .day-hours { font-size: 0.6rem; }
+        .occupancy-day.ok { background: var(--success); color: #fff; }
+        .occupancy-day.warning { background: var(--warning); color: #000; }
+        .occupancy-day.danger { background: var(--danger); color: #fff; }
+        .occupancy-day.empty { background: var(--bg-secondary); color: var(--text-secondary); }
+        
+        .tooltip { position: fixed; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.75rem; border-radius: 8px; font-size: 0.8rem; z-index: 1000; pointer-events: none; display: none; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .tooltip.show { display: block; }
+        .tooltip-task { padding: 0.25rem 0; border-bottom: 1px solid var(--border); }
+        .tooltip-task:last-child { border-bottom: none; }
+        .hidden { display: none; }
+        .no-data { text-align: center; padding: 2rem; color: var(--text-secondary); }
+        .new-file-btn { margin-left: auto; }
+        
+        .editor-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem; }
+        @media (max-width: 1200px) { .editor-grid { grid-template-columns: 1fr; } }
+        
+        .master-section { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); padding: 1rem; }
+        .master-list { background: var(--bg-secondary); border-radius: 6px; max-height: 180px; overflow-y: auto; margin-bottom: 0.75rem; }
+        .master-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        .master-item:last-child { border-bottom: none; }
+        .master-item:hover { background: var(--bg-card); }
+        .add-master-row { display: flex; gap: 0.5rem; }
+        .add-master-row input { flex: 1; }
+        
+        .entry-form { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; }
+        .form-group select, .form-group input { width: 100%; }
+        .form-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        
+        .entries-table-wrapper { max-height: 400px; overflow-y: auto; }
+        .entries-table { width: 100%; }
+        .entries-table th, .entries-table td { padding: 0.5rem; font-size: 0.8rem; }
+        .entries-table th input, .entries-table th select { width: 100%; padding: 0.3rem; font-size: 0.75rem; margin-top: 0.3rem; }
+        .action-btns { display: flex; gap: 0.3rem; }
+        
+        .download-section { display: flex; gap: 1rem; align-items: center; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .download-section span { color: var(--text-secondary); font-size: 0.9rem; }
+        .file-info { background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>📊 Gestión de Recursos - Logicalis</h1>
+    </header>
+
+    <div class="main-tabs">
+        <div class="main-tab active" data-maintab="reports"><span class="main-tab-icon">📈</span>Informes</div>
+        <div class="main-tab" data-maintab="editor"><span class="main-tab-icon">✏️</span>Editor de Datos</div>
+    </div>
+
+    <div class="upload-screen" id="uploadScreen">
+        <div class="upload-box" id="uploadBox">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Arrastra tu archivo JSON aquí</div>
+            <div class="upload-hint">o haz clic para seleccionar</div>
+        </div>
+        <input type="file" id="fileInput" accept=".json">
+        <div class="or-text">— o —</div>
+        <button class="start-empty-btn" id="startEmptyBtn">Empezar con datos vacíos</button>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div class="tab-content active" id="reportsTab">
+        <div class="main-content" id="mainContent">
+            
+            <!-- GLOBAL FILTERS BAR -->
+            <div class="section" style="margin-bottom:0.75rem;">
+                <div class="filters" style="border-radius:12px;">
+                    <div class="filter-group">
+                        <label>👥 Personas</label>
+                        <div>
+                            <button class="select-all-btn btn-secondary" id="selectAllBtn">Todas</button>
+                            <button class="select-all-btn btn-secondary" id="selectNoneBtn">Ninguna</button>
+                        </div>
+                        <div class="person-selector" id="personSelector"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label>📁 Proyecto</label>
+                        <select id="filterProject"><option value="">Todos</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>📝 Tarea</label>
+                        <select id="filterTask"><option value="">Todas</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>🏷️ Tipo</label>
+                        <select id="filterType">
+                            <option value="">Todo</option>
+                            <option value="vacation">Solo Vacaciones</option>
+                            <option value="project">Solo Proyectos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>📅 Fecha Desde</label>
+                        <input type="date" id="filterDateFrom">
+                    </div>
+                    <div class="filter-group">
+                        <label>📅 Fecha Hasta</label>
+                        <input type="date" id="filterDateTo">
+                    </div>
+                    <div class="filter-group" style="justify-content:flex-end;margin-top:auto;">
+                        <button id="clearFilters" class="btn-secondary">🗑️ Limpiar</button>
+                        <button id="refreshDataBtn" class="btn-success">🔄 Refrescar</button>
+                        <button id="newFileBtn" class="btn-secondary">📁 Otro archivo</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STATS BAR -->
+            <div class="stats-grid" style="margin-bottom:0.75rem;">
+                <div class="stat-card"><div class="stat-value" id="statPersons">0</div><div class="stat-label">Personas</div></div>
+                <div class="stat-card"><div class="stat-value project" id="statProjects">0</div><div class="stat-label">Proyectos</div></div>
+                <div class="stat-card"><div class="stat-value vacation" id="statVacations">0</div><div class="stat-label">Vacaciones</div></div>
+                <div class="stat-card"><div class="stat-value" id="statAssignments">0</div><div class="stat-label">Asignaciones</div></div>
+                <div class="stat-card"><div class="stat-value danger" id="statOverloaded">0</div><div class="stat-label">Días Sobrecarga</div></div>
+            </div>
+
+            <!-- REPORT TABS -->
+            <div class="report-tabs">
+                <div class="report-tab active" data-report="timeline">📅 Timeline</div>
+                <div class="report-tab" data-report="tables">📋 Tablas</div>
+            </div>
+
+            <!-- TIMELINE PANEL -->
+            <div class="report-panel active" id="timelinePanel">
+                <div class="section">
+                    <div class="section-header">
+                        <div class="timeline-controls">
+                            <div class="view-toggle" id="viewToggle">
+                                <button data-view="week">Semana</button>
+                                <button data-view="month" class="active">Mes</button>
+                                <button data-view="quarter">Trimestre</button>
+                                <button data-view="year">Año</button>
+                            </div>
+                            <button class="btn-secondary" id="prevBtn">◀</button>
+                            <span id="currentPeriod" style="min-width:180px;text-align:center;font-weight:600;font-size:1rem;"></span>
+                            <button class="btn-secondary" id="nextBtn">▶</button>
+                            <button id="todayBtn">Hoy</button>
+                        </div>
+                        <div class="legend">
+                            <div class="legend-item"><div class="legend-color vacation"></div>Vacaciones</div>
+                            <div class="legend-item"><div class="legend-color project"></div>Proyectos</div>
+                        </div>
+                    </div>
+                    <div class="section-content timeline-scroll" id="timelineContainer" style="max-height:450px;overflow:auto;"></div>
+                </div>
+            </div>
+
+            <!-- TABLES PANEL -->
+            <div class="report-panel" id="tablesPanel">
+                <div class="section">
+                    <div class="section-header">
+                        <div class="tabs">
+                            <div class="tab active" data-tab="vacations">🏖️ Vacaciones</div>
+                            <div class="tab" data-tab="projects">📁 Proyectos</div>
+                            <div class="tab" data-tab="occupancy">📈 Ocupación</div>
+                            <div class="tab" data-tab="all">📋 Todo</div>
+                        </div>
+                    </div>
+                    <div class="section-content table-wrapper" style="max-height:450px;">
+                        <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+                        <div class="no-data hidden" id="noData">No hay datos</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDITOR TAB -->
+    <div class="tab-content" id="editorTab">
+        <div class="main-content" id="editorContent">
+            <div class="download-section">
+                <button id="downloadJsonBtn" class="btn-success">💾 Descargar JSON</button>
+                <button id="saveFileBtn" class="btn-warning">📝 Sobrescribir archivo</button>
+                <span class="file-info" id="fileInfo">Sin archivo cargado</span>
+                <button id="newFileBtn2" class="btn-secondary" style="margin-left:auto;">📁 Cargar otro archivo</button>
+            </div>
+
+            <div class="editor-grid">
+                <div>
+                    <div class="master-section">
+                        <h3>👥 Personas</h3>
+                        <div class="master-list" id="personsList"></div>
+                        <div class="add-master-row">
+                            <input type="text" id="newPersonInput" placeholder="Nueva persona...">
+                            <button id="addPersonBtn" class="btn-sm">+ Añadir</button>
+                        </div>
+                    </div>
+                    <div class="master-section" style="margin-top:1rem;">
+                        <h3>📁 Proyectos (Phase)</h3>
+                        <div class="master-list" id="projectsList"></div>
+                        <div class="add-master-row">
+                            <input type="text" id="newProjectInput" placeholder="Nuevo proyecto...">
+                            <button id="addProjectBtn" class="btn-sm">+ Añadir</button>
+                        </div>
+                    </div>
+                    <div class="master-section" style="margin-top:1rem;">
+                        <h3>📝 Tareas</h3>
+                        <div class="master-list" id="tasksList"></div>
+                        <div class="add-master-row">
+                            <input type="text" id="newTaskInput" placeholder="Nueva tarea...">
+                            <button id="addTaskBtn" class="btn-sm">+ Añadir</button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="entry-form">
+                        <h3 id="formTitle">➕ Nueva Entrada</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Persona *</label>
+                                <select id="entryPerson"><option value="">Seleccionar...</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Proyecto (Phase) *</label>
+                                <select id="entryProject"><option value="">Seleccionar...</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Tarea *</label>
+                                <select id="entryTask"><option value="">Seleccionar...</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha Inicio *</label>
+                                <input type="date" id="entryStart">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha Fin *</label>
+                                <input type="date" id="entryEnd">
+                            </div>
+                            <div class="form-group">
+                                <label>Horas/día</label>
+                                <input type="number" id="entryTime" value="8" min="1" max="24">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button id="saveEntryBtn">💾 Guardar Entrada</button>
+                            <button id="cancelEditBtn" class="btn-secondary hidden">Cancelar</button>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <div class="section-header">
+                            <h2>📋 Entradas del JSON</h2>
+                            <span style="color:var(--text-secondary);font-size:0.85rem;" id="entriesCount">0 entradas</span>
+                        </div>
+                        <div class="section-content entries-table-wrapper">
+                            <table class="entries-table">
+                                <thead id="entriesHead"></thead>
+                                <tbody id="entriesBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+let jsonData = [];
+let masterPersons = [];
+let masterProjects = [];
+let masterTasks = [];
+let selectedPersons = new Set();
+let editingIndex = -1;
+let currentFileName = null;
+let lastLoadedFile = null;
+let lastFileHandle = null;
+
+// Filtros para tabla de entradas
+let entryFilters = { person: '', project: '', task: '', start: '', end: '' };
+
+function parseDate(str) {
+    if (!str) return null;
+    const [d, m, y] = str.split('/');
+    return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+}
+
+function formatDateToInput(str) {
+    if (!str) return '';
+    const [d, m, y] = str.split('/');
+    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+function formatDateFromInput(str) {
+    if (!str) return '';
+    const [y, m, d] = str.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+function getWorkingDays(start, end) {
+    const days = [];
+    const d = new Date(start);
+    while (d <= end) {
+        const dow = d.getDay();
+        if (dow !== 0 && dow !== 6) {
+            days.push(new Date(d));
+        }
+        d.setDate(d.getDate() + 1);
+    }
+    return days;
+}
+
+function calculateDailyHoursWithTasks(person, startDate, endDate) {
+    const dailyData = {};
+    const workingDays = getWorkingDays(startDate, endDate);
+    
+    workingDays.forEach(day => {
+        const dateKey = day.toISOString().slice(0, 10);
+        dailyData[dateKey] = { hours: 0, tasks: [], date: day };
+    });
+    
+    jsonData.filter(d => d.assignee === person).forEach(entry => {
+        const entryStart = parseDate(entry.start);
+        const entryEnd = parseDate(entry.end);
+        if (!entryStart || !entryEnd) return;
+        
+        workingDays.forEach(day => {
+            if (day >= entryStart && day <= entryEnd) {
+                const dateKey = day.toISOString().slice(0, 10);
+                const hours = entry.time || 8;
+                dailyData[dateKey].hours += hours;
+                dailyData[dateKey].tasks.push({ phase: entry.phase, task: entry.task, hours });
+            }
+        });
+    });
+    
+    return dailyData;
+}
+
+function updateMastersFromData() {
+    const personsFromData = [...new Set(jsonData.map(d => d.assignee).filter(Boolean))];
+    const projectsFromData = [...new Set(jsonData.map(d => d.phase).filter(Boolean))];
+    const tasksFromData = [...new Set(jsonData.map(d => d.task).filter(Boolean))];
+    
+    personsFromData.forEach(p => { if (!masterPersons.includes(p)) masterPersons.push(p); });
+    projectsFromData.forEach(p => { if (!masterProjects.includes(p)) masterProjects.push(p); });
+    tasksFromData.forEach(t => { if (!masterTasks.includes(t)) masterTasks.push(t); });
+    
+    masterPersons.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    masterProjects.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    masterTasks.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
+function initializeApp(data, fileName = null) {
+    jsonData = data || [];
+    currentFileName = fileName;
+    
+    masterPersons = [];
+    masterProjects = [];
+    masterTasks = [];
+    updateMastersFromData();
+    
+    selectedPersons = new Set(masterPersons);
+    
+    document.getElementById('uploadScreen').style.display = 'none';
+    document.getElementById('mainContent').classList.add('visible');
+    document.getElementById('editorContent').classList.add('visible');
+    
+    updateFileInfo();
+    refreshAll();
+}
+
+function updateFileInfo() {
+    document.getElementById('fileInfo').textContent = currentFileName ? `📄 ${currentFileName}` : 'Sin archivo cargado';
+}
+
+function refreshAll() {
+    renderMasterLists();
+    populateSelects();
+    renderPersonSelector();
+    updateStats();
+    renderTable();
+    renderTimeline();
+    renderEntriesTable();
+}
+
+// ========== MASTER LISTS ==========
+function renderMasterLists() {
+    document.getElementById('personsList').innerHTML = masterPersons.length > 0 
+        ? masterPersons.map(p => `<div class="master-item"><span>${p}</span><button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p)}')">×</button></div>`).join('')
+        : '<div class="master-item" style="color:var(--text-secondary)">Sin personas</div>';
+    
+    document.getElementById('projectsList').innerHTML = masterProjects.length > 0
+        ? masterProjects.map(p => `<div class="master-item"><span>${p}</span><button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p)}')">×</button></div>`).join('')
+        : '<div class="master-item" style="color:var(--text-secondary)">Sin proyectos</div>';
+    
+    document.getElementById('tasksList').innerHTML = masterTasks.length > 0
+        ? masterTasks.map(t => `<div class="master-item"><span>${t}</span><button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t)}')">×</button></div>`).join('')
+        : '<div class="master-item" style="color:var(--text-secondary)">Sin tareas</div>';
+}
+
+function escapeHtml(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function addMaster(type) {
+    const inputId = type === 'person' ? 'newPersonInput' : type === 'project' ? 'newProjectInput' : 'newTaskInput';
+    const input = document.getElementById(inputId);
+    const value = input.value.trim();
+    if (!value) return;
+    
+    if (type === 'person') {
+        if (!masterPersons.some(p => p.toLowerCase() === value.toLowerCase())) {
+            masterPersons.push(value);
+            masterPersons.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+            selectedPersons.add(value);
+        } else { alert('Esta persona ya existe'); return; }
+    } else if (type === 'project') {
+        if (!masterProjects.some(p => p.toLowerCase() === value.toLowerCase())) {
+            masterProjects.push(value);
+            masterProjects.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        } else { alert('Este proyecto ya existe'); return; }
+    } else if (type === 'task') {
+        if (!masterTasks.some(t => t.toLowerCase() === value.toLowerCase())) {
+            masterTasks.push(value);
+            masterTasks.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        } else { alert('Esta tarea ya existe'); return; }
+    }
+    
+    input.value = '';
+    refreshAll();
+}
+
+function deleteMaster(type, value) {
+    if (!confirm(`¿Eliminar "${value}"?`)) return;
+    
+    if (type === 'person') {
+        masterPersons = masterPersons.filter(p => p !== value);
+        jsonData = jsonData.filter(d => d.assignee !== value);
+        selectedPersons.delete(value);
+    } else if (type === 'project') {
+        masterProjects = masterProjects.filter(p => p !== value);
+        jsonData = jsonData.filter(d => d.phase !== value);
+    } else if (type === 'task') {
+        masterTasks = masterTasks.filter(t => t !== value);
+        jsonData = jsonData.filter(d => d.task !== value);
+    }
+    
+    refreshAll();
+}
+
+function populateSelects() {
+    const personSelect = document.getElementById('entryPerson');
+    const projectSelect = document.getElementById('entryProject');
+    const taskSelect = document.getElementById('entryTask');
+    const filterProject = document.getElementById('filterProject');
+    const filterTask = document.getElementById('filterTask');
+    
+    personSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterPersons.map(p => `<option value="${p}">${p}</option>`).join('');
+    projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterProjects.map(p => `<option value="${p}">${p}</option>`).join('');
+    taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterTasks.map(t => `<option value="${t}">${t}</option>`).join('');
+    filterProject.innerHTML = '<option value="">Todos</option>' + masterProjects.map(p => `<option value="${p}">${p}</option>`).join('');
+    filterTask.innerHTML = '<option value="">Todas</option>' + masterTasks.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+// ========== ENTRIES TABLE WITH FILTERS ==========
+function getFilteredEntries() {
+    return jsonData.filter(d => {
+        if (entryFilters.person && !(d.assignee || '').toLowerCase().includes(entryFilters.person.toLowerCase())) return false;
+        if (entryFilters.project && !(d.phase || '').toLowerCase().includes(entryFilters.project.toLowerCase())) return false;
+        if (entryFilters.task && !(d.task || '').toLowerCase().includes(entryFilters.task.toLowerCase())) return false;
+        if (entryFilters.start && !(d.start || '').includes(entryFilters.start)) return false;
+        if (entryFilters.end && !(d.end || '').includes(entryFilters.end)) return false;
+        return true;
+    });
+}
+
+function renderEntriesTable() {
+    const thead = document.getElementById('entriesHead');
+    const tbody = document.getElementById('entriesBody');
+    
+    // Solo actualizar cabecera si no existe
+    if (!thead.querySelector('input')) {
+        thead.innerHTML = `
+            <tr>
+                <th>Persona<br><input type="text" id="filterEntryPerson" placeholder="Filtrar..."></th>
+                <th>Proyecto<br><input type="text" id="filterEntryProject" placeholder="Filtrar..."></th>
+                <th>Tarea<br><input type="text" id="filterEntryTask" placeholder="Filtrar..."></th>
+                <th>Inicio<br><input type="text" id="filterEntryStart" placeholder="Filtrar..."></th>
+                <th>Fin<br><input type="text" id="filterEntryEnd" placeholder="Filtrar..."></th>
+                <th>Horas</th>
+                <th>Acciones</th>
+            </tr>`;
+        
+        // Add filter listeners una sola vez
+        ['Person', 'Project', 'Task', 'Start', 'End'].forEach(field => {
+            const input = document.getElementById(`filterEntry${field}`);
+            if (input) {
+                input.addEventListener('input', (e) => {
+                    entryFilters[field.toLowerCase()] = e.target.value;
+                    updateEntriesBody();
+                });
+            }
+        });
+    }
+    
+    updateEntriesBody();
+}
+
+function updateEntriesBody() {
+    const tbody = document.getElementById('entriesBody');
+    const filtered = getFilteredEntries();
+    
+    tbody.innerHTML = filtered.length > 0 
+        ? filtered.map((d) => {
+            const realIndex = jsonData.indexOf(d);
+            return `<tr>
+                <td>${d.assignee || '-'}</td>
+                <td>${d.phase || '-'}</td>
+                <td>${d.task || '-'}</td>
+                <td>${d.start || '-'}</td>
+                <td>${d.end || '-'}</td>
+                <td>${d.time || 8}</td>
+                <td class="action-btns">
+                    <button class="btn-sm btn-secondary" onclick="editEntry(${realIndex})">✏️</button>
+                    <button class="btn-sm btn-danger" onclick="deleteEntry(${realIndex})">🗑️</button>
+                </td>
+            </tr>`;
+        }).join('')
+        : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">Sin entradas</td></tr>';
+    
+    document.getElementById('entriesCount').textContent = `${filtered.length}/${jsonData.length} entradas`;
+}
+
+function saveEntry() {
+    const person = document.getElementById('entryPerson').value;
+    const project = document.getElementById('entryProject').value;
+    const task = document.getElementById('entryTask').value;
+    const start = document.getElementById('entryStart').value;
+    const end = document.getElementById('entryEnd').value;
+    const time = parseInt(document.getElementById('entryTime').value) || 8;
+    
+    if (!person || !project || !task || !start || !end) {
+        alert('Por favor, rellena todos los campos obligatorios (*)');
+        return;
+    }
+    
+    const entry = {
+        phase: project, task, milestone: null,
+        start: formatDateFromInput(start), end: formatDateFromInput(end),
+        completion: 0, dependencies: null, assignee: person, time
+    };
+    
+    if (editingIndex >= 0) {
+        jsonData[editingIndex] = entry;
+        editingIndex = -1;
+        document.getElementById('formTitle').textContent = '➕ Nueva Entrada';
+        document.getElementById('cancelEditBtn').classList.add('hidden');
+    } else {
+        jsonData.push(entry);
+    }
+    
+    clearEntryForm();
+    updateMastersFromData();
+    selectedPersons = new Set(masterPersons);
+    refreshAll();
+}
+
+function editEntry(index) {
+    const entry = jsonData[index];
+    editingIndex = index;
+    
+    document.getElementById('entryPerson').value = entry.assignee || '';
+    document.getElementById('entryProject').value = entry.phase || '';
+    document.getElementById('entryTask').value = entry.task || '';
+    document.getElementById('entryStart').value = formatDateToInput(entry.start);
+    document.getElementById('entryEnd').value = formatDateToInput(entry.end);
+    document.getElementById('entryTime').value = entry.time || 8;
+    
+    document.getElementById('formTitle').textContent = '✏️ Editar Entrada';
+    document.getElementById('cancelEditBtn').classList.remove('hidden');
+    document.getElementById('entryPerson').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function deleteEntry(index) {
+    if (!confirm('¿Eliminar esta entrada?')) return;
+    jsonData.splice(index, 1);
+    updateMastersFromData();
+    refreshAll();
+}
+
+function clearEntryForm() {
+    document.getElementById('entryPerson').value = '';
+    document.getElementById('entryProject').value = '';
+    document.getElementById('entryTask').value = '';
+    document.getElementById('entryStart').value = '';
+    document.getElementById('entryEnd').value = '';
+    document.getElementById('entryTime').value = 8;
+    editingIndex = -1;
+    document.getElementById('formTitle').textContent = '➕ Nueva Entrada';
+    document.getElementById('cancelEditBtn').classList.add('hidden');
+}
+
+function downloadJson() {
+    const blob = new Blob([JSON.stringify(jsonData, null, '\t')], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = currentFileName || ('recursos_' + new Date().toISOString().slice(0,10) + '.json');
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+async function saveToFile() {
+    if ('showSaveFilePicker' in window) {
+        try {
+            if (lastFileHandle) {
+                const writable = await lastFileHandle.createWritable();
+                await writable.write(JSON.stringify(jsonData, null, '\t'));
+                await writable.close();
+                alert('✅ Archivo sobrescrito correctamente');
+                return;
+            }
+            
+            const handle = await window.showSaveFilePicker({
+                suggestedName: currentFileName || 'recursos.json',
+                types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+            });
+            
+            lastFileHandle = handle;
+            const writable = await handle.createWritable();
+            await writable.write(JSON.stringify(jsonData, null, '\t'));
+            await writable.close();
+            currentFileName = handle.name;
+            updateFileInfo();
+            alert('✅ Archivo guardado correctamente');
+        } catch (e) {
+            if (e.name !== 'AbortError') alert('Error: ' + e.message);
+        }
+    } else {
+        alert('Tu navegador no soporta guardar archivos directamente. Usa "Descargar JSON".');
+    }
+}
+
+// ========== REPORTS ==========
+function renderPersonSelector() {
+    const container = document.getElementById('personSelector');
+    
+    container.innerHTML = masterPersons.length > 0 
+        ? masterPersons.map(p => {
+            const checked = selectedPersons.has(p) ? 'checked' : '';
+            const selectedClass = selectedPersons.has(p) ? 'selected' : '';
+            return `<div class="person-item ${selectedClass}" data-person="${p}">
+                <input type="checkbox" ${checked}>
+                <span class="person-name">${p}</span>
+            </div>`;
+        }).join('')
+        : '<div style="padding:1rem;color:var(--text-secondary);text-align:center;">Sin personas</div>';
+    
+    container.querySelectorAll('.person-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                checkbox.checked = !checkbox.checked;
+            }
+            const person = item.dataset.person;
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            if (checkbox.checked) {
+                selectedPersons.add(person);
+                item.classList.add('selected');
+            } else {
+                selectedPersons.delete(person);
+                item.classList.remove('selected');
+            }
+            updateStats(); renderTable(); renderTimeline();
+        });
+    });
+}
+
+function getFilterDateRange() {
+    const fromStr = document.getElementById('filterDateFrom').value;
+    const toStr = document.getElementById('filterDateTo').value;
+    return {
+        start: fromStr ? new Date(fromStr) : null,
+        end: toStr ? new Date(toStr) : null
+    };
+}
+
+function getFilteredData() {
+    const project = document.getElementById('filterProject').value;
+    const task = document.getElementById('filterTask').value;
+    const type = document.getElementById('filterType').value;
+    const dateRange = getFilterDateRange();
+
+    return jsonData.filter(d => {
+        if (!d.assignee) return false;
+        if (selectedPersons.size > 0 && !selectedPersons.has(d.assignee)) return false;
+        if (project && d.phase !== project) return false;
+        if (task && d.task !== task) return false;
+        if (type === 'vacation' && d.task !== 'Vacaciones') return false;
+        if (type === 'project' && d.task === 'Vacaciones') return false;
+        
+        if (dateRange.start || dateRange.end) {
+            const entryStart = parseDate(d.start);
+            const entryEnd = parseDate(d.end);
+            if (!entryStart || !entryEnd) return false;
+            
+            if (dateRange.start && dateRange.end) {
+                if (entryEnd < dateRange.start || entryStart > dateRange.end) return false;
+            } else if (dateRange.start) {
+                if (entryEnd < dateRange.start) return false;
+            } else if (dateRange.end) {
+                if (entryStart > dateRange.end) return false;
+            }
+        }
+        return true;
+    });
+}
+
+function updateStats() {
+    const filtered = getFilteredData();
+    const uniquePersons = [...new Set(filtered.map(d => d.assignee))];
+    const uniqueProjects = [...new Set(filtered.filter(d => d.task !== 'Vacaciones').map(d => d.phase))];
+    const vacCount = filtered.filter(d => d.task === 'Vacaciones').length;
+    const projectCount = filtered.filter(d => d.task !== 'Vacaciones').length;
+    
+    const dateRange = getFilterDateRange();
+    let overloadedDays = 0;
+    
+    if (dateRange.start && dateRange.end) {
+        [...selectedPersons].forEach(person => {
+            const dailyData = calculateDailyHoursWithTasks(person, dateRange.start, dateRange.end);
+            overloadedDays += Object.values(dailyData).filter(d => d.hours > 8).length;
+        });
+    }
+
+    document.getElementById('statPersons').textContent = uniquePersons.length;
+    document.getElementById('statProjects').textContent = uniqueProjects.length;
+    document.getElementById('statVacations').textContent = vacCount;
+    document.getElementById('statAssignments').textContent = projectCount;
+    document.getElementById('statOverloaded').textContent = overloadedDays;
+}
+
+let currentTab = 'vacations';
+
+function renderTable() {
+    const filtered = getFilteredData();
+    const thead = document.getElementById('tableHead');
+    const tbody = document.getElementById('tableBody');
+    const noData = document.getElementById('noData');
+    const dateRange = getFilterDateRange();
+
+    let tableData = [], headers = [];
+
+    if (currentTab === 'vacations') {
+        tableData = filtered.filter(d => d.task === 'Vacaciones');
+        headers = ['Persona', 'Inicio', 'Fin', 'Horas/día'];
+    } else if (currentTab === 'projects') {
+        tableData = filtered.filter(d => d.task !== 'Vacaciones');
+        headers = ['Persona', 'Proyecto', 'Tarea', 'Inicio', 'Fin', 'Horas/día'];
+    } else if (currentTab === 'occupancy') {
+        if (!dateRange.start || !dateRange.end) {
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            noData.innerHTML = '⚠️ Selecciona un rango de fechas (Desde y Hasta) para ver la ocupación';
+            noData.classList.remove('hidden');
+            return;
+        }
+        
+        noData.classList.add('hidden');
+        thead.innerHTML = '';
+        
+        const workingDays = getWorkingDays(dateRange.start, dateRange.end);
+        const personsToShow = [...selectedPersons].filter(p => masterPersons.includes(p)).sort();
+        
+        if (personsToShow.length === 0) {
+            tbody.innerHTML = '<div class="no-data">Selecciona personas para ver la ocupación</div>';
+            return;
+        }
+        
+        // Render como timeline
+        let html = `<div class="timeline-header"><div class="timeline-header-name">Persona</div><div class="timeline-header-dates">`;
+        
+        let lastMonth = -1;
+        workingDays.forEach((day, idx) => {
+            const isMonthStart = day.getMonth() !== lastMonth;
+            lastMonth = day.getMonth();
+            const label = `${WEEKDAYS[day.getDay()]}<br>${day.getDate()}`;
+            html += `<div class="timeline-date${isMonthStart && idx > 0 ? ' month-start' : ''}">${isMonthStart ? `<span class="timeline-month-label">${MONTHS_SHORT[day.getMonth()]}</span>` : label}</div>`;
+        });
+        html += `</div></div>`;
+        
+        personsToShow.forEach(person => {
+            const dailyData = calculateDailyHoursWithTasks(person, dateRange.start, dateRange.end);
+            const hasOverload = Object.values(dailyData).some(d => d.hours > 8);
+            
+            html += `<div class="timeline-row"><div class="timeline-row-name${hasOverload ? ' overloaded' : ''}">${person}${hasOverload ? ' ⚠️' : ''}</div><div class="timeline-row-cells" style="display:flex;">`;
+            
+            let lastMonth2 = -1;
+            workingDays.forEach((day, idx) => {
+                const isMonthStart = day.getMonth() !== lastMonth2;
+                lastMonth2 = day.getMonth();
+                const dateKey = day.toISOString().slice(0, 10);
+                const data = dailyData[dateKey] || { hours: 0, tasks: [] };
+                
+                let bgColor = 'var(--bg-secondary)';
+                let textColor = 'var(--text-secondary)';
+                if (data.hours > 8) { bgColor = 'var(--danger)'; textColor = '#fff'; }
+                else if (data.hours === 8) { bgColor = 'var(--success)'; textColor = '#fff'; }
+                else if (data.hours > 0) { bgColor = 'var(--warning)'; textColor = '#000'; }
+                
+                const tasksJson = JSON.stringify(data.tasks).replace(/"/g, '&quot;');
+                const dateStr = day.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+                
+                html += `<div class="occupancy-cell${isMonthStart && idx > 0 ? ' month-start' : ''}" 
+                    style="flex:1;min-width:32px;display:flex;align-items:center;justify-content:center;background:${bgColor};color:${textColor};font-size:0.7rem;font-weight:600;font-family:'JetBrains Mono',monospace;cursor:pointer;border-right:1px solid var(--border);"
+                    data-date="${dateStr}" 
+                    data-hours="${data.hours}" 
+                    data-tasks="${tasksJson}"
+                    data-person="${person}">${data.hours || ''}</div>`;
+            });
+            
+            html += `</div></div>`;
+        });
+        
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:0;">${html}</td></tr>`;
+        
+        // Add tooltips
+        document.querySelectorAll('.occupancy-cell').forEach(cell => {
+            cell.addEventListener('mouseenter', (e) => {
+                const date = cell.dataset.date;
+                const hours = cell.dataset.hours;
+                const person = cell.dataset.person;
+                const tasks = JSON.parse(cell.dataset.tasks || '[]');
+                
+                let tooltipHtml = `<strong>${person}</strong><br>📅 ${date}<br>`;
+                if (parseInt(hours) > 8) {
+                    tooltipHtml += `<span style="color:var(--danger);font-weight:600;">⚠️ SOBRECARGA: ${hours}h</span>`;
+                } else {
+                    tooltipHtml += `Total: <strong>${hours}h</strong>`;
+                }
+                
+                if (tasks.length > 0) {
+                    tooltipHtml += '<hr style="margin:0.5rem 0;border-color:var(--border);">';
+                    tooltipHtml += tasks.map(t => `<div class="tooltip-task">📌 <strong>${t.phase}</strong> - ${t.task}: ${t.hours}h</div>`).join('');
+                } else {
+                    tooltipHtml += '<br><span style="color:var(--text-secondary);">Sin tareas asignadas</span>';
+                }
+                
+                const tooltip = document.getElementById('tooltip');
+                tooltip.innerHTML = tooltipHtml;
+                tooltip.classList.add('show');
+            });
+            cell.addEventListener('mousemove', (e) => {
+                const tooltip = document.getElementById('tooltip');
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY - tooltip.offsetHeight - 10) + 'px';
+            });
+            cell.addEventListener('mouseleave', () => {
+                document.getElementById('tooltip').classList.remove('show');
+            });
+        });
+        
+        return;
+    } else {
+        tableData = filtered;
+        headers = ['Persona', 'Proyecto', 'Tarea', 'Inicio', 'Fin', 'Horas/día'];
+    }
+
+    thead.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    if (tableData.length === 0) {
+        tbody.innerHTML = '';
+        noData.classList.remove('hidden');
+        return;
+    }
+    noData.classList.add('hidden');
+
+    if (currentTab === 'vacations') {
+        tbody.innerHTML = tableData.map(d => `<tr><td>${d.assignee}</td><td>${d.start}</td><td>${d.end}</td><td>${d.time || 8}</td></tr>`).join('');
+    } else if (currentTab === 'projects') {
+        tbody.innerHTML = tableData.map(d => `<tr><td>${d.assignee}</td><td><span class="badge badge-project">${d.phase}</span></td><td>${d.task}</td><td>${d.start}</td><td>${d.end}</td><td>${d.time || '-'}</td></tr>`).join('');
+    } else {
+        tbody.innerHTML = tableData.map(d => `<tr><td>${d.assignee}</td><td><span class="badge ${d.task === 'Vacaciones' ? 'badge-vacation' : 'badge-project'}">${d.phase}</span></td><td>${d.task}</td><td>${d.start}</td><td>${d.end}</td><td>${d.time || '-'}</td></tr>`).join('');
+    }
+}
+
+// ========== TIMELINE ==========
+let currentDate = new Date();
+let viewMode = 'month';
+
+function getViewRange() {
+    const start = new Date(currentDate);
+    const end = new Date(currentDate);
+    if (viewMode === 'week') {
+        start.setDate(start.getDate() - start.getDay() + 1);
+        end.setTime(start.getTime());
+        end.setDate(end.getDate() + 4);
+    } else if (viewMode === 'month') {
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+    } else if (viewMode === 'quarter') {
+        const q = Math.floor(start.getMonth() / 3);
+        start.setMonth(q * 3, 1);
+        end.setMonth(q * 3 + 3, 0);
+    } else {
+        start.setMonth(0, 1);
+        end.setMonth(11, 31);
+    }
+    return { start, end };
+}
+
+const MONTHS_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MONTHS_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const WEEKDAYS = ['D','L','M','X','J','V','S'];
+
+function formatPeriod() {
+    const { start, end } = getViewRange();
+    if (viewMode === 'week') return `${start.getDate()} ${MONTHS_SHORT[start.getMonth()]} - ${end.getDate()} ${MONTHS_SHORT[end.getMonth()]} ${end.getFullYear()}`;
+    if (viewMode === 'month') return `${MONTHS_FULL[start.getMonth()]} ${start.getFullYear()}`;
+    if (viewMode === 'quarter') return `Q${Math.floor(start.getMonth() / 3) + 1} ${start.getFullYear()} (${MONTHS_SHORT[start.getMonth()]} - ${MONTHS_SHORT[end.getMonth()]})`;
+    return `Año ${start.getFullYear()}`;
+}
+
+function navigate(dir) {
+    if (viewMode === 'week') currentDate.setDate(currentDate.getDate() + dir * 7);
+    else if (viewMode === 'month') currentDate.setMonth(currentDate.getMonth() + dir);
+    else if (viewMode === 'quarter') currentDate.setMonth(currentDate.getMonth() + dir * 3);
+    else currentDate.setFullYear(currentDate.getFullYear() + dir);
+    renderTimeline();
+}
+
+function renderTimeline() {
+    const container = document.getElementById('timelineContainer');
+    const { start, end } = getViewRange();
+    const days = getWorkingDays(start, end);
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    const filterProject = document.getElementById('filterProject').value;
+    const filterTask = document.getElementById('filterTask').value;
+    const filterType = document.getElementById('filterType').value;
+
+    let filteredPersons = selectedPersons.size > 0 ? [...selectedPersons].sort() : masterPersons;
+    let filteredData = jsonData.filter(d => {
+        if (!d.assignee) return false;
+        if (selectedPersons.size > 0 && !selectedPersons.has(d.assignee)) return false;
+        if (filterProject && d.phase !== filterProject) return false;
+        if (filterTask && d.task !== filterTask) return false;
+        if (filterType === 'vacation' && d.task !== 'Vacaciones') return false;
+        if (filterType === 'project' && d.task === 'Vacaciones') return false;
+        const dStart = parseDate(d.start);
+        const dEnd = parseDate(d.end);
+        if (!dStart || !dEnd) return false;
+        return dEnd >= start && dStart <= end;
+    });
+
+    document.getElementById('currentPeriod').textContent = formatPeriod();
+
+    if (days.length === 0) {
+        container.innerHTML = '<div class="no-data">Sin días laborables en este período</div>';
+        return;
+    }
+
+    let html = `<div class="timeline-header"><div class="timeline-header-name">Persona</div><div class="timeline-header-dates">`;
+    
+    let lastMonth = -1;
+    days.forEach((day, idx) => {
+        const isToday = day.getTime() === today.getTime();
+        const isMonthStart = day.getMonth() !== lastMonth;
+        lastMonth = day.getMonth();
+        
+        let label = '';
+        if (viewMode === 'year') {
+            if (isMonthStart) label = `<span class="timeline-month-label">${MONTHS_SHORT[day.getMonth()]}</span>`;
+            else if (day.getDate() === 15) label = '15';
+        } else if (viewMode === 'quarter') {
+            if (isMonthStart) label = `<span class="timeline-month-label">${MONTHS_SHORT[day.getMonth()]}</span>`;
+            else label = `${day.getDate()}`;
+        } else {
+            label = `${WEEKDAYS[day.getDay()]}<br>${day.getDate()}`;
+        }
+        
+        html += `<div class="timeline-date${isToday ? ' today' : ''}${isMonthStart && idx > 0 ? ' month-start' : ''}">${label}</div>`;
+    });
+    html += `</div></div>`;
+
+    if (filteredPersons.length === 0) {
+        html += '<div class="no-data">Selecciona personas para ver el timeline</div>';
+        container.innerHTML = html;
+        return;
+    }
+
+    filteredPersons.forEach(person => {
+        const personData = filteredData.filter(d => d.assignee === person);
+        const dailyData = calculateDailyHoursWithTasks(person, start, end);
+        const hasOverload = Object.values(dailyData).some(d => d.hours > 8);
+        
+        // Pre-calcular barras
+        const personBars = [];
+        personData.forEach(item => {
+            const dStart = parseDate(item.start);
+            const dEnd = parseDate(item.end);
+            if (!dStart || !dEnd) return;
+            
+            let barStartIdx = -1, barEndIdx = -1;
+            days.forEach((day, idx) => {
+                if (day >= dStart && day <= dEnd) {
+                    if (barStartIdx === -1) barStartIdx = idx;
+                    barEndIdx = idx;
+                }
+            });
+            
+            if (barStartIdx !== -1 && barEndIdx !== -1) {
+                personBars.push({ item, barStartIdx, barEndIdx });
+            }
+        });
+        
+        // Calcular niveles para evitar solapamientos
+        personBars.forEach(bar => {
+            let row = 0;
+            while (personBars.some(other => 
+                other !== bar && 
+                other.row === row && 
+                !(bar.barEndIdx < other.barStartIdx || bar.barStartIdx > other.barEndIdx)
+            )) {
+                row++;
+            }
+            bar.row = row;
+        });
+        
+        const maxRows = Math.max(1, ...personBars.map(b => (b.row || 0) + 1));
+        const rowHeight = Math.max(36, maxRows * 16 + 8);
+        
+        html += `<div class="timeline-row" style="min-height:${rowHeight}px;"><div class="timeline-row-name${hasOverload ? ' overloaded' : ''}">${person}${hasOverload ? ' ⚠️' : ''}</div><div class="timeline-row-cells">`;
+        
+        let lastMonth2 = -1;
+        days.forEach((day, idx) => {
+            const isMonthStart = day.getMonth() !== lastMonth2;
+            lastMonth2 = day.getMonth();
+            html += `<div class="timeline-cell${isMonthStart && idx > 0 ? ' month-start' : ''}"></div>`;
+        });
+        
+        personBars.forEach(bar => {
+            const { item, barStartIdx, barEndIdx } = bar;
+            const left = (barStartIdx / days.length) * 100;
+            const width = ((barEndIdx - barStartIdx + 1) / days.length) * 100;
+            const isVacation = item.task === 'Vacaciones';
+            const label = isVacation ? 'Vac' : `${item.phase}`;
+            const barHeight = Math.max(12, Math.min(14, 32 / maxRows));
+            const topOffset = 4 + (bar.row * (barHeight + 2));
+            html += `<div class="timeline-bar ${isVacation ? 'vacation' : 'project'}" style="left:${left}%;width:${width}%;top:${topOffset}px;height:${barHeight}px;" data-info="${item.phase}|${item.task}|${item.start}|${item.end}|${item.time || 8}h/día">${label}</div>`;
+        });
+        html += `</div></div>`;
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.timeline-bar').forEach(bar => {
+        bar.addEventListener('mouseenter', e => {
+            const [phase, task, start, end, time] = bar.dataset.info.split('|');
+            document.getElementById('tooltip').innerHTML = `<strong>${phase}</strong><br>${task}<br>📅 ${start} → ${end}<br>⏱️ ${time}`;
+            document.getElementById('tooltip').classList.add('show');
+        });
+        bar.addEventListener('mousemove', e => {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (e.clientX + 15) + 'px';
+            tooltip.style.top = (e.clientY + 15) + 'px';
+        });
+        bar.addEventListener('mouseleave', () => document.getElementById('tooltip').classList.remove('show'));
+    });
+}
+
+// ========== FILE HANDLING ==========
+const uploadBox = document.getElementById('uploadBox');
+const fileInput = document.getElementById('fileInput');
+
+uploadBox.addEventListener('click', async () => {
+    if ('showOpenFilePicker' in window) {
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+            });
+            lastFileHandle = handle;
+            const file = await handle.getFile();
+            loadFile(file);
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error(e);
+        }
+    } else {
+        fileInput.click();
+    }
+});
+uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+uploadBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadBox.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+});
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) loadFile(file);
+});
+
+function loadFile(file) {
+    lastLoadedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const json = JSON.parse(e.target.result);
+            initializeApp(json, file.name);
+        } catch (err) {
+            alert('Error al leer el archivo JSON: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function showUploadScreen() {
+    document.getElementById('mainContent').classList.remove('visible');
+    document.getElementById('editorContent').classList.remove('visible');
+    document.getElementById('uploadScreen').style.display = 'flex';
+    fileInput.value = '';
+    lastFileHandle = null;
+}
+
+// ========== EVENTS ==========
+document.querySelectorAll('.main-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(tab.dataset.maintab + 'Tab').classList.add('active');
+    });
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        renderTable();
+    });
+});
+
+document.querySelectorAll('.report-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.report-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.report-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.report + 'Panel').classList.add('active');
+    });
+});
+
+document.querySelectorAll('#viewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#viewToggle button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        viewMode = btn.dataset.view;
+        renderTimeline();
+    });
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => navigate(-1));
+document.getElementById('nextBtn').addEventListener('click', () => navigate(1));
+document.getElementById('todayBtn').addEventListener('click', () => { currentDate = new Date(); renderTimeline(); });
+
+document.getElementById('selectAllBtn').addEventListener('click', () => {
+    selectedPersons = new Set(masterPersons);
+    renderPersonSelector(); updateStats(); renderTable(); renderTimeline();
+});
+document.getElementById('selectNoneBtn').addEventListener('click', () => {
+    selectedPersons = new Set();
+    renderPersonSelector(); updateStats(); renderTable(); renderTimeline();
+});
+
+document.querySelectorAll('#filterProject, #filterTask, #filterType, #filterDateFrom, #filterDateTo').forEach(el => {
+    el.addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
+});
+
+document.getElementById('clearFilters').addEventListener('click', () => {
+    document.getElementById('filterProject').value = '';
+    document.getElementById('filterTask').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    updateStats(); renderTable(); renderTimeline();
+});
+
+document.getElementById('newFileBtn').addEventListener('click', showUploadScreen);
+document.getElementById('newFileBtn2').addEventListener('click', showUploadScreen);
+document.getElementById('startEmptyBtn').addEventListener('click', () => initializeApp([]));
+
+document.getElementById('refreshDataBtn').addEventListener('click', () => {
+    if (lastLoadedFile) {
+        loadFile(lastLoadedFile);
+    } else {
+        alert('No hay archivo cargado para refrescar.');
+    }
+});
+
+document.getElementById('addPersonBtn').addEventListener('click', () => addMaster('person'));
+document.getElementById('addProjectBtn').addEventListener('click', () => addMaster('project'));
+document.getElementById('addTaskBtn').addEventListener('click', () => addMaster('task'));
+
+document.getElementById('newPersonInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') addMaster('person'); });
+document.getElementById('newProjectInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') addMaster('project'); });
+document.getElementById('newTaskInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') addMaster('task'); });
+
+document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
+document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
+document.getElementById('downloadJsonBtn').addEventListener('click', downloadJson);
+document.getElementById('saveFileBtn').addEventListener('click', saveToFile);
+</script>
+</body>
+</html>
+
