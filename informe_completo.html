@@ -39,16 +39,11 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
-        .upload-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; }
-        .upload-box { background: var(--bg-card); border: 2px dashed var(--border); border-radius: 16px; padding: 3rem; text-align: center; cursor: pointer; transition: all 0.3s; }
-        .upload-box:hover { border-color: var(--accent); background: var(--bg-secondary); }
-        .upload-box.dragover { border-color: var(--accent); background: var(--accent)22; }
-        .upload-icon { font-size: 4rem; margin-bottom: 1rem; }
-        .upload-text { font-size: 1.2rem; margin-bottom: 0.5rem; }
-        .upload-hint { color: var(--text-secondary); font-size: 0.9rem; }
-        #fileInput { display: none; }
-        .or-text { margin: 1.5rem 0; color: var(--text-secondary); }
-        .start-empty-btn { padding: 1rem 2rem; font-size: 1rem; }
+        .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; }
+        .loading-spinner { font-size: 3rem; animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .loading-text { margin-top: 1rem; font-size: 1.2rem; color: var(--text-secondary); }
+        .error-box { background: var(--danger)22; border: 1px solid var(--danger); padding: 1.5rem; border-radius: 12px; text-align: center; color: var(--danger); }
         
         .main-content { display: none; }
         .main-content.visible { display: block; }
@@ -206,15 +201,9 @@
         <div class="main-tab" data-maintab="editor"><span class="main-tab-icon">✏️</span>Editor de Datos</div>
     </div>
 
-    <div class="upload-screen" id="uploadScreen">
-        <div class="upload-box" id="uploadBox">
-            <div class="upload-icon">📁</div>
-            <div class="upload-text">Arrastra tu archivo JSON aquí</div>
-            <div class="upload-hint">o haz clic para seleccionar</div>
-        </div>
-        <input type="file" id="fileInput" accept=".json">
-        <div class="or-text">— o —</div>
-        <button class="start-empty-btn" id="startEmptyBtn">Empezar con datos vacíos</button>
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner">⏳</div>
+        <div class="loading-text">Cargando datos...</div>
     </div>
 
     <!-- REPORTS TAB -->
@@ -259,7 +248,6 @@
                     <div class="filter-group" style="justify-content:flex-end;margin-top:auto;">
                         <button id="clearFilters" class="btn-secondary">🗑️ Limpiar</button>
                         <button id="refreshDataBtn" class="btn-success">🔄 Refrescar</button>
-                        <button id="newFileBtn" class="btn-secondary">📁 Otro archivo</button>
                     </div>
                 </div>
             </div>
@@ -329,9 +317,8 @@
         <div class="main-content" id="editorContent">
             <div class="download-section">
                 <button id="downloadJsonBtn" class="btn-success">💾 Descargar JSON</button>
-                <button id="saveFileBtn" class="btn-warning">📝 Sobrescribir archivo</button>
-                <span class="file-info" id="fileInfo">Sin archivo cargado</span>
-                <button id="newFileBtn2" class="btn-secondary" style="margin-left:auto;">📁 Cargar otro archivo</button>
+                <button id="saveFileBtn" class="btn-warning">📝 Guardar en Azure</button>
+                <span class="file-info" id="fileInfo">data2 -Horas.json</span>
             </div>
 
             <div class="editor-grid">
@@ -415,15 +402,16 @@
 <div class="tooltip" id="tooltip"></div>
 
 <script>
+// Configuración Azure Blob Storage
+const AZURE_BLOB_URL = 'data2 -Horas.json'; // URL relativa en el mismo $web container
+
 let jsonData = [];
 let masterPersons = [];
 let masterProjects = [];
 let masterTasks = [];
 let selectedPersons = new Set();
 let editingIndex = -1;
-let currentFileName = null;
-let lastLoadedFile = null;
-let lastFileHandle = null;
+let currentFileName = 'data2 -Horas.json';
 
 // Filtros para tabla de entradas
 let entryFilters = { person: '', project: '', task: '', start: '', end: '' };
@@ -500,9 +488,8 @@ function updateMastersFromData() {
     masterTasks.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 }
 
-function initializeApp(data, fileName = null) {
+function initializeApp(data) {
     jsonData = data || [];
-    currentFileName = fileName;
     
     masterPersons = [];
     masterProjects = [];
@@ -511,16 +498,33 @@ function initializeApp(data, fileName = null) {
     
     selectedPersons = new Set(masterPersons);
     
-    document.getElementById('uploadScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('mainContent').classList.add('visible');
     document.getElementById('editorContent').classList.add('visible');
     
-    updateFileInfo();
     refreshAll();
 }
 
-function updateFileInfo() {
-    document.getElementById('fileInfo').textContent = currentFileName ? `📄 ${currentFileName}` : 'Sin archivo cargado';
+async function loadFromAzure() {
+    try {
+        const response = await fetch(AZURE_BLOB_URL + '?t=' + Date.now()); // Cache bust
+        if (!response.ok) throw new Error('Error al cargar: ' + response.status);
+        const data = await response.json();
+        initializeApp(data);
+    } catch (err) {
+        document.getElementById('loadingScreen').innerHTML = `
+            <div class="error-box">
+                <div style="font-size:2rem;margin-bottom:1rem;">❌</div>
+                <div>Error al cargar datos: ${err.message}</div>
+                <button onclick="loadFromAzure()" style="margin-top:1rem;">🔄 Reintentar</button>
+            </div>`;
+    }
+}
+
+async function saveToAzure() {
+    // Nota: Para escribir en Azure Blob Storage necesitas un SAS token con permisos de escritura
+    // o usar Azure Functions como proxy
+    alert('⚠️ Para guardar en Azure Blob Storage necesitas configurar un SAS token con permisos de escritura o usar Azure Functions.\n\nPor ahora, usa "Descargar JSON" y sube el archivo manualmente.');
 }
 
 function refreshAll() {
@@ -760,36 +764,6 @@ function downloadJson() {
     URL.revokeObjectURL(url);
 }
 
-async function saveToFile() {
-    if ('showSaveFilePicker' in window) {
-        try {
-            if (lastFileHandle) {
-                const writable = await lastFileHandle.createWritable();
-                await writable.write(JSON.stringify(jsonData, null, '\t'));
-                await writable.close();
-                alert('✅ Archivo sobrescrito correctamente');
-                return;
-            }
-            
-            const handle = await window.showSaveFilePicker({
-                suggestedName: currentFileName || 'recursos.json',
-                types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
-            });
-            
-            lastFileHandle = handle;
-            const writable = await handle.createWritable();
-            await writable.write(JSON.stringify(jsonData, null, '\t'));
-            await writable.close();
-            currentFileName = handle.name;
-            updateFileInfo();
-            alert('✅ Archivo guardado correctamente');
-        } catch (e) {
-            if (e.name !== 'AbortError') alert('Error: ' + e.message);
-        }
-    } else {
-        alert('Tu navegador no soporta guardar archivos directamente. Usa "Descargar JSON".');
-    }
-}
 
 // ========== REPORTS ==========
 function renderPersonSelector() {
@@ -1220,60 +1194,8 @@ function renderTimeline() {
     });
 }
 
-// ========== FILE HANDLING ==========
-const uploadBox = document.getElementById('uploadBox');
-const fileInput = document.getElementById('fileInput');
-
-uploadBox.addEventListener('click', async () => {
-    if ('showOpenFilePicker' in window) {
-        try {
-            const [handle] = await window.showOpenFilePicker({
-                types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
-            });
-            lastFileHandle = handle;
-            const file = await handle.getFile();
-            loadFile(file);
-        } catch (e) {
-            if (e.name !== 'AbortError') console.error(e);
-        }
-    } else {
-        fileInput.click();
-    }
-});
-uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
-uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
-uploadBox.addEventListener('drop', (e) => {
-    e.preventDefault();
-    uploadBox.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (file) loadFile(file);
-});
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) loadFile(file);
-});
-
-function loadFile(file) {
-    lastLoadedFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const json = JSON.parse(e.target.result);
-            initializeApp(json, file.name);
-        } catch (err) {
-            alert('Error al leer el archivo JSON: ' + err.message);
-        }
-    };
-    reader.readAsText(file);
-}
-
-function showUploadScreen() {
-    document.getElementById('mainContent').classList.remove('visible');
-    document.getElementById('editorContent').classList.remove('visible');
-    document.getElementById('uploadScreen').style.display = 'flex';
-    fileInput.value = '';
-    lastFileHandle = null;
-}
+// ========== LOAD DATA ON START ==========
+document.addEventListener('DOMContentLoaded', loadFromAzure);
 
 // ========== EVENTS ==========
 document.querySelectorAll('.main-tab').forEach(tab => {
@@ -1338,17 +1260,8 @@ document.getElementById('clearFilters').addEventListener('click', () => {
     updateStats(); renderTable(); renderTimeline();
 });
 
-document.getElementById('newFileBtn').addEventListener('click', showUploadScreen);
-document.getElementById('newFileBtn2').addEventListener('click', showUploadScreen);
-document.getElementById('startEmptyBtn').addEventListener('click', () => initializeApp([]));
 
-document.getElementById('refreshDataBtn').addEventListener('click', () => {
-    if (lastLoadedFile) {
-        loadFile(lastLoadedFile);
-    } else {
-        alert('No hay archivo cargado para refrescar.');
-    }
-});
+document.getElementById('refreshDataBtn').addEventListener('click', loadFromAzure);
 
 document.getElementById('addPersonBtn').addEventListener('click', () => addMaster('person'));
 document.getElementById('addProjectBtn').addEventListener('click', () => addMaster('project'));
@@ -1361,7 +1274,7 @@ document.getElementById('newTaskInput').addEventListener('keypress', (e) => { if
 document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
 document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
 document.getElementById('downloadJsonBtn').addEventListener('click', downloadJson);
-document.getElementById('saveFileBtn').addEventListener('click', saveToFile);
+document.getElementById('saveFileBtn').addEventListener('click', saveToAzure);
 </script>
 </body>
 </html>
