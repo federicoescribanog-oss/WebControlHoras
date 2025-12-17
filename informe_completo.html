@@ -410,14 +410,36 @@ const BLOB_FILE_NAME = 'data2 -Horas.json';
 const AZURE_SAS_TOKEN = 'sv=2024-11-04&ss=bf&srt=co&sp=rwdlacyx&se=2030-12-30T23:09:50Z&st=2025-12-17T14:54:50Z&spr=https&sig=%2BfUltjSRn2%2BoSN5Lvgs9jVu5LGW2Q%2BGzcxIZC1yAQc8%3D'; // Pega aquí tu SAS token con permisos de escritura (sp=rwc)
 
 // Construir URL completa del blob
+// IMPORTANTE: Para leer usamos el static website, para escribir usamos el blob service endpoint
 function getBlobUrl() {
+    // Para lectura: usar static website endpoint (más rápido)
     const baseUrl = window.location.origin;
     return `${baseUrl}/${BLOB_FILE_NAME}`;
+}
+
+function getBlobUrlForWrite() {
+    // Para escritura: usar blob service endpoint (permite PUT)
+    // Extraer nombre del storage account de la URL actual
+    // Ejemplo: webcontrolhoras.z6.web.core.windows.net -> webcontrolhoras
+    const hostname = window.location.hostname;
+    const storageAccountMatch = hostname.match(/^([^.]+)\./);
+    if (!storageAccountMatch) {
+        throw new Error('No se pudo detectar el nombre del Storage Account desde la URL');
+    }
+    const storageAccountName = storageAccountMatch[1];
+    return `https://${storageAccountName}.blob.core.windows.net/$web/${BLOB_FILE_NAME}`;
 }
 
 function getBlobUrlWithSAS() {
     if (!AZURE_SAS_TOKEN) return null;
     const url = getBlobUrl();
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}${AZURE_SAS_TOKEN}`;
+}
+
+function getBlobUrlWithSASForWrite() {
+    if (!AZURE_SAS_TOKEN) return null;
+    const url = getBlobUrlForWrite();
     const separator = url.includes('?') ? '&' : '?';
     return `${url}${separator}${AZURE_SAS_TOKEN}`;
 }
@@ -545,7 +567,15 @@ async function saveToAzure() {
         return;
     }
     
-    const blobUrlWithSAS = getBlobUrlWithSAS();
+    // Para escritura, usar blob service endpoint (no static website)
+    let blobUrlWithSAS;
+    try {
+        blobUrlWithSAS = getBlobUrlWithSASForWrite();
+    } catch (err) {
+        alert('❌ Error: ' + err.message);
+        return;
+    }
+    
     if (!blobUrlWithSAS) {
         alert('❌ Error: No se pudo construir la URL con SAS token.');
         return;
