@@ -192,6 +192,131 @@
         .download-section { display: flex; gap: 1rem; align-items: center; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem; flex-wrap: wrap; }
         .download-section span { color: var(--text-secondary); font-size: 0.9rem; }
         .file-info { background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+        
+        /* ========== RESPONSIVE STYLES ========== */
+        /* Tablets y pantallas medianas */
+        @media (max-width: 1024px) {
+            .container { padding: 1rem; }
+            h1 { font-size: 1.5rem; }
+            .main-tab { padding: 0.75rem 1rem; font-size: 0.9rem; }
+            .main-tab-icon { width: 18px; height: 18px; }
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+            .stat-value { font-size: 1.5rem; }
+            .timeline-controls { flex-direction: column; align-items: stretch; }
+            .timeline-controls > * { width: 100%; }
+            .view-toggle { width: 100%; }
+            .view-toggle button { flex: 1; }
+            .legend { margin-left: 0; margin-top: 0.5rem; }
+            .section-header { flex-direction: column; align-items: flex-start; }
+            .tabs { flex-wrap: wrap; width: 100%; }
+            .tab { flex: 1; min-width: calc(50% - 0.5rem); }
+            .report-tabs { flex-direction: column; }
+            .report-tab { border-radius: 12px 12px 0 0; margin-left: 0; margin-bottom: 0.25rem; }
+            .report-tab:not(:first-child) { margin-left: 0; }
+        }
+        
+        /* Móviles grandes */
+        @media (max-width: 768px) {
+            .container { padding: 0.75rem; }
+            header { padding: 0.75rem 1rem; }
+            h1 { font-size: 1.3rem; }
+            .header-icon { width: 24px; height: 24px; margin-right: 0.4rem; }
+            .main-tabs { flex-direction: column; gap: 0.5rem; }
+            .main-tab { border-radius: 12px !important; border: 2px solid var(--border) !important; }
+            .main-tab:first-child, .main-tab:last-child { border-radius: 12px; }
+            .main-tab:not(:first-child) { border-left: 2px solid var(--border); }
+            .filters { flex-direction: column; padding: 0.75rem; }
+            .filter-group { width: 100%; }
+            .person-selector { min-width: 100%; max-height: 150px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+            .stat-card { padding: 0.75rem; }
+            .stat-value { font-size: 1.3rem; }
+            .stat-label { font-size: 0.7rem; }
+            .section-header { padding: 0.75rem; }
+            .section-header h2 { font-size: 1rem; }
+            .tabs { flex-direction: column; gap: 0.5rem; }
+            .tab { width: 100%; min-width: 100%; }
+            .timeline-header-name { min-width: 120px; max-width: 120px; font-size: 0.7rem; }
+            .timeline-row-name { min-width: 120px; max-width: 120px; font-size: 0.7rem; }
+            .timeline-date { min-width: 28px; font-size: 0.55rem; padding: 0.25rem 0.1rem; }
+            .timeline-cell { min-width: 28px; }
+            .timeline-bar { font-size: 0.45rem; height: 12px; }
+            .table-wrapper { max-height: 300px; }
+            table { font-size: 0.75rem; }
+            th, td { padding: 0.4rem 0.3rem; font-size: 0.75rem; }
+            .editor-grid { grid-template-columns: 1fr; gap: 1rem; }
+            .entry-form { padding: 1rem; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-actions { flex-direction: column; }
+            .form-actions button { width: 100%; }
+            .download-section { flex-direction: column; align-items: stretch; }
+            .download-section button { width: 100%; }
+            .master-section { padding: 0.75rem; }
+            .master-list { max-height: 150px; }
+            .add-master-row { flex-direction: column; }
+            .add-master-row button { width: 100%; }
+            .entries-table-wrapper { max-height: 300px; }
+            .entries-table th, .entries-table td { padding: 0.4rem 0.3rem; font-size: 0.7rem; }
+            .action-btns { flex-direction: column; }
+            .action-btns button { width: 100%; }
+            .view-toggle { flex-direction: column; }
+            .view-toggle button { border-radius: 6px !important; border: 2px solid var(--border) !important; }
+            .view-toggle button:not(:first-child) { border-top: none; }
+            .view-toggle button:first-child { border-radius: 6px 6px 0 0; }
+            .view-toggle button:last-child { border-radius: 0 0 6px 6px; }
+        }
+        
+        /* Móviles pequeños */
+        @media (max-width: 480px) {
+            .container { padding: 0.5rem; }
+            header { padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+            h1 { font-size: 1.1rem; }
+            .header-icon { width: 20px; height: 20px; }
+            .main-tab { padding: 0.6rem 0.75rem; font-size: 0.85rem; }
+            .main-tab-icon { width: 16px; height: 16px; margin-right: 0.3rem; }
+            .filters { padding: 0.5rem; gap: 0.75rem; }
+            .filter-group label { font-size: 0.8rem; }
+            select, input, button { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .stat-value { font-size: 1.2rem; }
+            .section-header { padding: 0.5rem; }
+            h2 { font-size: 0.95rem; }
+            h3 { font-size: 0.9rem; }
+            .tab { padding: 0.4rem 0.75rem; font-size: 0.75rem; }
+            .tab-icon { width: 14px; height: 14px; }
+            .timeline-header-name { min-width: 100px; max-width: 100px; padding: 0.4rem 0.3rem; font-size: 0.65rem; }
+            .timeline-row-name { min-width: 100px; max-width: 100px; padding: 0.3rem 0.4rem; font-size: 0.65rem; }
+            .timeline-date { min-width: 24px; font-size: 0.5rem; padding: 0.2rem 0.05rem; }
+            .timeline-cell { min-width: 24px; }
+            .timeline-bar { font-size: 0.4rem; height: 10px; padding: 0 2px; }
+            .timeline-controls button { padding: 0.4rem 0.75rem; font-size: 0.75rem; }
+            #currentPeriod { font-size: 0.85rem; min-width: auto; }
+            table { font-size: 0.7rem; }
+            th, td { padding: 0.3rem 0.2rem; font-size: 0.7rem; }
+            .badge { padding: 0.15rem 0.4rem; font-size: 0.65rem; }
+            .entry-form { padding: 0.75rem; }
+            .form-group label { font-size: 0.75rem; }
+            .master-section { padding: 0.5rem; }
+            .master-item { padding: 0.4rem 0.5rem; font-size: 0.8rem; }
+            .download-section { padding: 0.75rem; }
+            .file-info { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+            .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+            .select-all-btn { padding: 0.3rem 0.6rem; font-size: 0.75rem; margin: 0.3rem; }
+        }
+        
+        /* Orientación horizontal en móviles */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+            .filters { flex-direction: row; flex-wrap: wrap; }
+            .filter-group { flex: 1; min-width: calc(50% - 0.5rem); }
+        }
+        
+        /* Mejoras de accesibilidad táctil */
+        @media (hover: none) and (pointer: coarse) {
+            button, .tab, .main-tab, .report-tab, .person-item { min-height: 44px; }
+            .timeline-bar { min-height: 20px; }
+            input, select { min-height: 44px; }
+        }
     </style>
 </head>
 <body>
