@@ -26,7 +26,7 @@
         body { font-family: 'Outfit', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
         .container { max-width: 1800px; margin: 0 auto; padding: 1rem 2rem; }
         header { text-align: center; margin-bottom: 1rem; padding: 1rem 1.5rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
-        h1 { font-size: 1.8rem; background: linear-gradient(135deg, var(--accent), #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h1 { font-size: 1.8rem; background: linear-gradient(135deg, var(--accent), #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
         h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
         h3 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-primary); }
         
@@ -36,7 +36,9 @@
         .main-tab:last-child { border-radius: 0 12px 12px 0; border-left: none; }
         .main-tab:hover { background: var(--bg-secondary); color: var(--text-primary); }
         .main-tab.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
-        .main-tab-icon { font-size: 1.2rem; margin-right: 0.5rem; }
+        .main-tab-icon { width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 0.5rem; }
+        .header-icon { width: 32px; height: 32px; display: inline-block; vertical-align: middle; margin-right: 0.5rem; }
+        .tab-icon { width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 0.4rem; }
         
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -195,12 +197,25 @@
 <body>
 <div class="container">
     <header>
-        <h1>📊 Gestión de Recursos - Logicalis</h1>
+        <h1>
+            <img src="favicon.svg" alt="Icono" class="header-icon">
+            Gestión de Recursos - Logicalis
+        </h1>
     </header>
 
     <div class="main-tabs">
-        <div class="main-tab active" data-maintab="reports"><span class="main-tab-icon">📈</span>Informes</div>
-        <div class="main-tab" data-maintab="editor"><span class="main-tab-icon">✏️</span>Editor de Datos</div>
+        <div class="main-tab active" data-maintab="reports">
+            <svg class="main-tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM7 7h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2z"/>
+            </svg>
+            Informes
+        </div>
+        <div class="main-tab" data-maintab="editor">
+            <svg class="main-tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+            Editor de Datos
+        </div>
     </div>
 
     <div class="loading-screen" id="loadingScreen">
@@ -216,7 +231,12 @@
             <div class="section" style="margin-bottom:0.75rem;">
                 <div class="filters" style="border-radius:12px;">
                     <div class="filter-group">
-                        <label>👥 Personas</label>
+                        <label>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;">
+                                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                            </svg>
+                            Personas
+                        </label>
                         <div>
                             <button class="select-all-btn btn-secondary" id="selectAllBtn">Todas</button>
                             <button class="select-all-btn btn-secondary" id="selectNoneBtn">Ninguna</button>
@@ -224,15 +244,30 @@
                         <div class="person-selector" id="personSelector"></div>
                     </div>
                     <div class="filter-group">
-                        <label>📁 Proyecto</label>
+                        <label>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;">
+                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                            </svg>
+                            Proyecto
+                        </label>
                         <select id="filterProject"><option value="">Todos</option></select>
                     </div>
                     <div class="filter-group">
-                        <label>📝 Tarea</label>
+                        <label>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;">
+                                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                            Tarea
+                        </label>
                         <select id="filterTask"><option value="">Todas</option></select>
                     </div>
                     <div class="filter-group">
-                        <label>🏷️ Tipo</label>
+                        <label>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;">
+                                <path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7.01v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/>
+                            </svg>
+                            Tipo
+                        </label>
                         <select id="filterType">
                             <option value="">Todo</option>
                             <option value="vacation">Solo Vacaciones</option>
@@ -240,16 +275,36 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>📅 Fecha Desde</label>
+                        <label>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;">
+                                <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                            </svg>
+                            Fecha Desde
+                        </label>
                         <input type="date" id="filterDateFrom">
                     </div>
                     <div class="filter-group">
-                        <label>📅 Fecha Hasta</label>
+                        <label>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;">
+                                <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                            </svg>
+                            Fecha Hasta
+                        </label>
                         <input type="date" id="filterDateTo">
                     </div>
                     <div class="filter-group" style="justify-content:flex-end;margin-top:auto;">
-                        <button id="clearFilters" class="btn-secondary">🗑️ Limpiar</button>
-                        <button id="refreshDataBtn" class="btn-success">🔄 Refrescar</button>
+                        <button id="clearFilters" class="btn-secondary">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                            Limpiar
+                        </button>
+                        <button id="refreshDataBtn" class="btn-success">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
+                                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                            </svg>
+                            Refrescar
+                        </button>
                     </div>
                 </div>
             </div>
@@ -265,8 +320,18 @@
 
             <!-- REPORT TABS -->
             <div class="report-tabs">
-                <div class="report-tab active" data-report="timeline">📅 Timeline</div>
-                <div class="report-tab" data-report="tables">📋 Tablas</div>
+                <div class="report-tab active" data-report="timeline">
+                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                    </svg>
+                    Timeline
+                </div>
+                <div class="report-tab" data-report="tables">
+                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/>
+                    </svg>
+                    Tablas
+                </div>
             </div>
 
             <!-- TIMELINE PANEL -->
@@ -299,10 +364,30 @@
                 <div class="section">
                     <div class="section-header">
                         <div class="tabs">
-                            <div class="tab active" data-tab="vacations">🏖️ Vacaciones</div>
-                            <div class="tab" data-tab="projects">📁 Proyectos</div>
-                            <div class="tab" data-tab="occupancy">📈 Ocupación</div>
-                            <div class="tab" data-tab="all">📋 Todo</div>
+                            <div class="tab active" data-tab="vacations">
+                                <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6.5 12c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4.5-2c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2zm6 0c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2zm4.5 2c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM12 3C6.48 3 2 7.48 2 13s4.48 10 10 10 10-4.48 10-10S17.52 3 12 3zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                                </svg>
+                                Vacaciones
+                            </div>
+                            <div class="tab" data-tab="projects">
+                                <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                                </svg>
+                                Proyectos
+                            </div>
+                            <div class="tab" data-tab="occupancy">
+                                <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                                </svg>
+                                Ocupación
+                            </div>
+                            <div class="tab" data-tab="all">
+                                <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/>
+                                </svg>
+                                Todo
+                            </div>
                         </div>
                     </div>
                     <div class="section-content table-wrapper" style="max-height:450px;">
@@ -318,8 +403,18 @@
     <div class="tab-content" id="editorTab">
         <div class="main-content" id="editorContent">
             <div class="download-section">
-                <button id="downloadJsonBtn" class="btn-success">💾 Descargar JSON</button>
-                <button id="saveFileBtn" class="btn-warning">📝 Guardar en Azure</button>
+                <button id="downloadJsonBtn" class="btn-success">
+                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                    Descargar JSON
+                </button>
+                <button id="saveFileBtn" class="btn-warning">
+                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
+                        <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                    </svg>
+                    Guardar en Azure
+                </button>
                 <span class="file-info" id="fileInfo">data2 -Horas.json</span>
                 <span class="file-info" id="sasStatus" style="font-size:0.75rem;color:var(--text-secondary);"></span>
             </div>
@@ -327,7 +422,12 @@
             <div class="editor-grid">
                 <div>
                     <div class="master-section">
-                        <h3>👥 Personas</h3>
+                        <h3>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;">
+                                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                            </svg>
+                            Personas
+                        </h3>
                         <div class="master-list" id="personsList"></div>
                         <div class="add-master-row">
                             <input type="text" id="newPersonInput" placeholder="Nueva persona...">
@@ -335,7 +435,12 @@
                         </div>
                     </div>
                     <div class="master-section" style="margin-top:1rem;">
-                        <h3>📁 Proyectos (Phase)</h3>
+                        <h3>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;">
+                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                            </svg>
+                            Proyectos (Phase)
+                        </h3>
                         <div class="master-list" id="projectsList"></div>
                         <div class="add-master-row">
                             <input type="text" id="newProjectInput" placeholder="Nuevo proyecto...">
@@ -343,7 +448,12 @@
                         </div>
                     </div>
                     <div class="master-section" style="margin-top:1rem;">
-                        <h3>📝 Tareas</h3>
+                        <h3>
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;">
+                                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                            Tareas
+                        </h3>
                         <div class="master-list" id="tasksList"></div>
                         <div class="add-master-row">
                             <input type="text" id="newTaskInput" placeholder="Nueva tarea...">
@@ -353,7 +463,12 @@
                 </div>
                 <div>
                     <div class="entry-form">
-                        <h3 id="formTitle">➕ Nueva Entrada</h3>
+                        <h3 id="formTitle">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                            </svg>
+                            Nueva Entrada
+                        </h3>
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>Persona *</label>
@@ -381,13 +496,23 @@
                             </div>
                         </div>
                         <div class="form-actions">
-                            <button id="saveEntryBtn">💾 Guardar Entrada</button>
+                            <button id="saveEntryBtn">
+                                <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
+                                    <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                                </svg>
+                                Guardar Entrada
+                            </button>
                             <button id="cancelEditBtn" class="btn-secondary hidden">Cancelar</button>
                         </div>
                     </div>
                     <div class="section">
                         <div class="section-header">
-                            <h2>📋 Entradas del JSON</h2>
+                            <h2>
+                                <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;">
+                                    <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/>
+                                </svg>
+                                Entradas del JSON
+                            </h2>
                             <span style="color:var(--text-secondary);font-size:0.85rem;" id="entriesCount">0 entradas</span>
                         </div>
                         <div class="section-content entries-table-wrapper">
@@ -836,8 +961,16 @@ function updateEntriesBody() {
                 <td>${d.end || '-'}</td>
                 <td>${d.time || 8}</td>
                 <td class="action-btns">
-                    <button class="btn-sm btn-secondary" onclick="editEntry(${realIndex})">✏️</button>
-                    <button class="btn-sm btn-danger" onclick="deleteEntry(${realIndex})">🗑️</button>
+                    <button class="btn-sm btn-secondary" onclick="editEntry(${realIndex})" title="Editar">
+                        <svg style="width:14px;height:14px;vertical-align:middle;" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-sm btn-danger" onclick="deleteEntry(${realIndex})" title="Eliminar">
+                        <svg style="width:14px;height:14px;vertical-align:middle;" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                    </button>
                 </td>
             </tr>`;
         }).join('')
@@ -868,7 +1001,7 @@ function saveEntry() {
     if (editingIndex >= 0) {
         jsonData[editingIndex] = entry;
         editingIndex = -1;
-        document.getElementById('formTitle').textContent = '➕ Nueva Entrada';
+        document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
         document.getElementById('cancelEditBtn').classList.add('hidden');
     } else {
         jsonData.push(entry);
@@ -891,7 +1024,7 @@ function editEntry(index) {
     document.getElementById('entryEnd').value = formatDateToInput(entry.end);
     document.getElementById('entryTime').value = entry.time || 8;
     
-    document.getElementById('formTitle').textContent = '✏️ Editar Entrada';
+    document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg> Editar Entrada';
     document.getElementById('cancelEditBtn').classList.remove('hidden');
     document.getElementById('entryPerson').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -911,7 +1044,7 @@ function clearEntryForm() {
     document.getElementById('entryEnd').value = '';
     document.getElementById('entryTime').value = 8;
     editingIndex = -1;
-    document.getElementById('formTitle').textContent = '➕ Nueva Entrada';
+    document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
     document.getElementById('cancelEditBtn').classList.add('hidden');
 }
 
