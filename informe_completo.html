@@ -685,6 +685,9 @@ const API_BASE_URL = isDevelopment
 
 const API_URL = `${API_BASE_URL}/api/registros`;
 const API_AUTH_URL = `${API_BASE_URL}/api/auth/verify`;
+const API_PERSONAS_URL = `${API_BASE_URL}/api/personas`;
+const API_PROYECTOS_URL = `${API_BASE_URL}/api/proyectos`;
+const API_TAREAS_URL = `${API_BASE_URL}/api/tareas`;
 
 console.log('API URL configurada:', API_URL);
 
@@ -779,9 +782,9 @@ function logout() {
 }
 
 let jsonData = [];
-let masterPersons = [];
-let masterProjects = [];
-let masterTasks = [];
+let masterPersons = []; // Array de objetos {id, nombre}
+let masterProjects = []; // Array de objetos {id, nombre}
+let masterTasks = []; // Array de objetos {id, nombre}
 let selectedPersons = new Set();
 let editingId = null; // Cambiar de índice a ID de base de datos
 let currentFileName = 'Base de Datos SQL Server';
@@ -847,29 +850,56 @@ function calculateDailyHoursWithTasks(person, startDate, endDate) {
     return dailyData;
 }
 
-function updateMastersFromData() {
-    const personsFromData = [...new Set(jsonData.map(d => d.assignee).filter(Boolean))];
-    const projectsFromData = [...new Set(jsonData.map(d => d.phase).filter(Boolean))];
-    const tasksFromData = [...new Set(jsonData.map(d => d.task).filter(Boolean))];
-    
-    personsFromData.forEach(p => { if (!masterPersons.includes(p)) masterPersons.push(p); });
-    projectsFromData.forEach(p => { if (!masterProjects.includes(p)) masterProjects.push(p); });
-    tasksFromData.forEach(t => { if (!masterTasks.includes(t)) masterTasks.push(t); });
-    
-    masterPersons.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    masterProjects.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    masterTasks.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+// Cargar maestros desde la base de datos
+async function loadMasters() {
+    try {
+        // Cargar personas
+        const personasResponse = await fetch(API_PERSONAS_URL, {
+            headers: getAuthHeaders()
+        });
+        if (personasResponse.ok) {
+            const personas = await personasResponse.json();
+            masterPersons = personas.map(p => ({ id: p.id, nombre: p.nombre }));
+            masterPersons.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+        }
+        
+        // Cargar proyectos
+        const proyectosResponse = await fetch(API_PROYECTOS_URL, {
+            headers: getAuthHeaders()
+        });
+        if (proyectosResponse.ok) {
+            const proyectos = await proyectosResponse.json();
+            masterProjects = proyectos.map(p => ({ id: p.id, nombre: p.nombre }));
+            masterProjects.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+        }
+        
+        // Cargar tareas
+        const tareasResponse = await fetch(API_TAREAS_URL, {
+            headers: getAuthHeaders()
+        });
+        if (tareasResponse.ok) {
+            const tareas = await tareasResponse.json();
+            masterTasks = tareas.map(t => ({ id: t.id, nombre: t.nombre }));
+            masterTasks.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+        }
+    } catch (err) {
+        console.error('Error al cargar maestros:', err);
+    }
 }
 
-function initializeApp(data) {
+function updateMastersFromData() {
+    // Ya no actualizamos desde jsonData, se cargan desde la BD
+    // Esta función se mantiene por compatibilidad pero ya no hace nada
+}
+
+async function initializeApp(data) {
     jsonData = data || [];
     
-    masterPersons = [];
-    masterProjects = [];
-    masterTasks = [];
-    updateMastersFromData();
+    // Cargar maestros desde la base de datos
+    await loadMasters();
     
-    selectedPersons = new Set(masterPersons);
+    // Actualizar selectedPersons con los nombres
+    selectedPersons = new Set(masterPersons.map(p => p.nombre));
     
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('mainContent').classList.add('visible');
@@ -891,7 +921,7 @@ async function loadFromAPI() {
         
         if (!response.ok) throw new Error('Error al cargar: ' + response.status);
         const data = await response.json();
-        initializeApp(data);
+        await initializeApp(data);
     } catch (err) {
         document.getElementById('loadingScreen').innerHTML = `
             <div class="error-box">
@@ -941,16 +971,17 @@ function updateSASStatus() {
 
 // ========== MASTER LISTS ==========
 function renderMasterLists() {
+    // Trabajar con objetos {id, nombre}
     document.getElementById('personsList').innerHTML = masterPersons.length > 0 
-        ? masterPersons.map(p => `<div class="master-item"><span>${p}</span><button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p)}')">×</button></div>`).join('')
+        ? masterPersons.map(p => `<div class="master-item"><span>${p.nombre}</span><button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p.nombre)}')">×</button></div>`).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin personas</div>';
     
     document.getElementById('projectsList').innerHTML = masterProjects.length > 0
-        ? masterProjects.map(p => `<div class="master-item"><span>${p}</span><button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p)}')">×</button></div>`).join('')
+        ? masterProjects.map(p => `<div class="master-item"><span>${p.nombre}</span><button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p.nombre)}')">×</button></div>`).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin proyectos</div>';
     
     document.getElementById('tasksList').innerHTML = masterTasks.length > 0
-        ? masterTasks.map(t => `<div class="master-item"><span>${t}</span><button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t)}')">×</button></div>`).join('')
+        ? masterTasks.map(t => `<div class="master-item"><span>${t.nombre}</span><button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t.nombre)}')">×</button></div>`).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin tareas</div>';
 }
 
@@ -958,32 +989,117 @@ function escapeHtml(str) {
     return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
 
-function addMaster(type) {
+async function addMaster(type) {
     const inputId = type === 'person' ? 'newPersonInput' : type === 'project' ? 'newProjectInput' : 'newTaskInput';
     const input = document.getElementById(inputId);
     const value = input.value.trim();
     if (!value) return;
     
-    if (type === 'person') {
-        if (!masterPersons.some(p => p.toLowerCase() === value.toLowerCase())) {
-            masterPersons.push(value);
-            masterPersons.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-            selectedPersons.add(value);
-        } else { alert('Esta persona ya existe'); return; }
-    } else if (type === 'project') {
-        if (!masterProjects.some(p => p.toLowerCase() === value.toLowerCase())) {
-            masterProjects.push(value);
-            masterProjects.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-        } else { alert('Este proyecto ya existe'); return; }
-    } else if (type === 'task') {
-        if (!masterTasks.some(t => t.toLowerCase() === value.toLowerCase())) {
-            masterTasks.push(value);
-            masterTasks.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-        } else { alert('Esta tarea ya existe'); return; }
+    // Verificar permisos (solo admin y gestor pueden crear)
+    const userRole = getUserRole();
+    if (userRole !== 'admin' && userRole !== 'gestor') {
+        alert('No tienes permisos para crear nuevos valores');
+        return;
     }
     
-    input.value = '';
-    refreshAll();
+    const button = type === 'person' ? document.getElementById('addPersonBtn') : 
+                   type === 'project' ? document.getElementById('addProjectBtn') : 
+                   document.getElementById('addTaskBtn');
+    const originalText = button.textContent;
+    button.textContent = '⏳ Guardando...';
+    button.disabled = true;
+    
+    try {
+        let apiUrl, body;
+        
+        if (type === 'person') {
+            apiUrl = API_PERSONAS_URL;
+            body = { nombre: value };
+        } else if (type === 'project') {
+            apiUrl = API_PROYECTOS_URL;
+            body = { nombre: value };
+        } else if (type === 'task') {
+            apiUrl = API_TAREAS_URL;
+            body = { nombre: value };
+        }
+        
+        // Verificar primero si ya existe (llamada al backend)
+        const checkResponse = await fetch(apiUrl, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        
+        if (checkResponse.status === 401 || checkResponse.status === 403) {
+            logout();
+            return;
+        }
+        
+        if (checkResponse.ok) {
+            const existing = await checkResponse.json();
+            const exists = existing.some(item => item.nombre.toLowerCase() === value.toLowerCase());
+            
+            if (exists) {
+                alert(`${type === 'person' ? 'Esta persona' : type === 'project' ? 'Este proyecto' : 'Esta tarea'} ya existe`);
+                // Recargar la lista para obtener el ID
+                await loadMasters();
+                button.textContent = originalText;
+                button.disabled = false;
+                return;
+            }
+        }
+        
+        // Crear el nuevo valor
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(body)
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            return;
+        }
+        
+        if (response.status === 409) {
+            // Ya existe (otro usuario lo creó)
+            const error = await response.json();
+            alert(`${type === 'person' ? 'Esta persona' : type === 'project' ? 'Este proyecto' : 'Esta tarea'} ya existe`);
+            // Recargar la lista para obtener el ID
+            await loadMasters();
+            button.textContent = originalText;
+            button.disabled = false;
+            return;
+        }
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al crear');
+        }
+        
+        const newItem = await response.json();
+        
+        // Agregar a la lista local
+        if (type === 'person') {
+            masterPersons.push({ id: newItem.id, nombre: newItem.nombre });
+            masterPersons.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+            selectedPersons.add(newItem.nombre);
+        } else if (type === 'project') {
+            masterProjects.push({ id: newItem.id, nombre: newItem.nombre });
+            masterProjects.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+        } else if (type === 'task') {
+            masterTasks.push({ id: newItem.id, nombre: newItem.nombre });
+            masterTasks.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+        }
+        
+        input.value = '';
+        refreshAll();
+    } catch (err) {
+        alert(`❌ Error al guardar: ${err.message}`);
+        console.error('Error:', err);
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
 }
 
 function deleteMaster(type, value) {
@@ -1011,11 +1127,12 @@ function populateSelects() {
     const filterProject = document.getElementById('filterProject');
     const filterTask = document.getElementById('filterTask');
     
-    personSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterPersons.map(p => `<option value="${p}">${p}</option>`).join('');
-    projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterProjects.map(p => `<option value="${p}">${p}</option>`).join('');
-    taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterTasks.map(t => `<option value="${t}">${t}</option>`).join('');
-    filterProject.innerHTML = '<option value="">Todos</option>' + masterProjects.map(p => `<option value="${p}">${p}</option>`).join('');
-    filterTask.innerHTML = '<option value="">Todas</option>' + masterTasks.map(t => `<option value="${t}">${t}</option>`).join('');
+    // Usar objetos {id, nombre}
+    personSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterPersons.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
+    projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterProjects.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
+    taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterTasks.map(t => `<option value="${t.nombre}" data-id="${t.id}">${t.nombre}</option>`).join('');
+    filterProject.innerHTML = '<option value="">Todos</option>' + masterProjects.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
+    filterTask.innerHTML = '<option value="">Todas</option>' + masterTasks.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
 }
 
 // ========== ENTRIES TABLE WITH FILTERS ==========
@@ -1096,9 +1213,12 @@ function updateEntriesBody() {
 }
 
 async function saveEntry() {
-    const person = document.getElementById('entryPerson').value.trim();
-    const project = document.getElementById('entryProject').value.trim();
-    const task = document.getElementById('entryTask').value.trim();
+    const personSelect = document.getElementById('entryPerson');
+    const projectSelect = document.getElementById('entryProject');
+    const taskSelect = document.getElementById('entryTask');
+    const person = personSelect.value.trim();
+    const project = projectSelect.value.trim();
+    const task = taskSelect.value.trim();
     const start = document.getElementById('entryStart').value;
     const end = document.getElementById('entryEnd').value;
     const time = parseInt(document.getElementById('entryTime').value) || 8;
@@ -1108,15 +1228,23 @@ async function saveEntry() {
         return;
     }
     
+    // Obtener IDs de los selects
+    const personId = personSelect.options[personSelect.selectedIndex]?.dataset?.id;
+    const projectId = projectSelect.options[projectSelect.selectedIndex]?.dataset?.id;
+    const taskId = taskSelect.options[taskSelect.selectedIndex]?.dataset?.id;
+    
     const entry = {
-        phase: project,
-        task: task,
+        phase: project, // Mantener nombre para compatibilidad
+        phase_id: projectId ? parseInt(projectId) : null,
+        task: task, // Mantener nombre para compatibilidad
+        task_id: taskId ? parseInt(taskId) : null,
         milestone: null,
         start: formatDateFromInput(start),
         end: formatDateFromInput(end),
         completion: 0,
         dependencies: null,
-        assignee: person,
+        assignee: person, // Mantener nombre para compatibilidad
+        assignee_id: personId ? parseInt(personId) : null,
         time: time
     };
     

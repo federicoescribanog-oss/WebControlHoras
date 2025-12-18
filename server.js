@@ -854,6 +854,188 @@ app.delete('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor
     }
 });
 
+// ========== RUTAS PARA DIMENSIONES (MAESTROS) ==========
+
+// GET /api/personas - Obtener todas las personas
+app.get('/api/personas', authenticateToken, async (req, res) => {
+    try {
+        const pool = await getPool();
+        const result = await pool.request().query(`
+            SELECT id, nombre, email, activo, fecha_creacion
+            FROM personas
+            WHERE activo = 1
+            ORDER BY nombre ASC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error al obtener personas:', err);
+        res.status(500).json({ error: 'Error al obtener personas', details: err.message });
+    }
+});
+
+// POST /api/personas - Crear nueva persona (admin y gestor)
+app.post('/api/personas', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
+    try {
+        const { nombre, email } = req.body;
+        
+        if (!nombre || !nombre.trim()) {
+            return res.status(400).json({ error: 'El nombre es requerido' });
+        }
+        
+        const pool = await getPool();
+        
+        // Verificar si ya existe (case-insensitive)
+        const checkResult = await pool.request()
+            .input('nombre', sql.NVarChar(255), nombre.trim())
+            .query('SELECT id, nombre FROM personas WHERE LOWER(nombre) = LOWER(@nombre)');
+        
+        if (checkResult.recordset.length > 0) {
+            return res.status(409).json({ 
+                error: 'Esta persona ya existe',
+                id: checkResult.recordset[0].id,
+                nombre: checkResult.recordset[0].nombre
+            });
+        }
+        
+        // Insertar nueva persona
+        const result = await pool.request()
+            .input('nombre', sql.NVarChar(255), nombre.trim())
+            .input('email', sql.NVarChar(255), email ? email.trim() : null)
+            .query(`
+                INSERT INTO personas (nombre, email)
+                OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.email
+                VALUES (@nombre, @email)
+            `);
+        
+        const newPerson = result.recordset[0];
+        res.status(201).json(newPerson);
+    } catch (err) {
+        console.error('Error al crear persona:', err);
+        res.status(500).json({ error: 'Error al crear persona', details: err.message });
+    }
+});
+
+// GET /api/proyectos - Obtener todos los proyectos
+app.get('/api/proyectos', authenticateToken, async (req, res) => {
+    try {
+        const pool = await getPool();
+        const result = await pool.request().query(`
+            SELECT id, nombre, descripcion, activo, fecha_creacion
+            FROM proyectos
+            WHERE activo = 1
+            ORDER BY nombre ASC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error al obtener proyectos:', err);
+        res.status(500).json({ error: 'Error al obtener proyectos', details: err.message });
+    }
+});
+
+// POST /api/proyectos - Crear nuevo proyecto (admin y gestor)
+app.post('/api/proyectos', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
+    try {
+        const { nombre, descripcion } = req.body;
+        
+        if (!nombre || !nombre.trim()) {
+            return res.status(400).json({ error: 'El nombre es requerido' });
+        }
+        
+        const pool = await getPool();
+        
+        // Verificar si ya existe (case-insensitive)
+        const checkResult = await pool.request()
+            .input('nombre', sql.NVarChar(255), nombre.trim())
+            .query('SELECT id, nombre FROM proyectos WHERE LOWER(nombre) = LOWER(@nombre)');
+        
+        if (checkResult.recordset.length > 0) {
+            return res.status(409).json({ 
+                error: 'Este proyecto ya existe',
+                id: checkResult.recordset[0].id,
+                nombre: checkResult.recordset[0].nombre
+            });
+        }
+        
+        // Insertar nuevo proyecto
+        const result = await pool.request()
+            .input('nombre', sql.NVarChar(255), nombre.trim())
+            .input('descripcion', sql.NVarChar(500), descripcion ? descripcion.trim() : null)
+            .query(`
+                INSERT INTO proyectos (nombre, descripcion)
+                OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.descripcion
+                VALUES (@nombre, @descripcion)
+            `);
+        
+        const newProject = result.recordset[0];
+        res.status(201).json(newProject);
+    } catch (err) {
+        console.error('Error al crear proyecto:', err);
+        res.status(500).json({ error: 'Error al crear proyecto', details: err.message });
+    }
+});
+
+// GET /api/tareas - Obtener todas las tareas
+app.get('/api/tareas', authenticateToken, async (req, res) => {
+    try {
+        const pool = await getPool();
+        const result = await pool.request().query(`
+            SELECT id, nombre, descripcion, activo, fecha_creacion
+            FROM tareas
+            WHERE activo = 1
+            ORDER BY nombre ASC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error al obtener tareas:', err);
+        res.status(500).json({ error: 'Error al obtener tareas', details: err.message });
+    }
+});
+
+// POST /api/tareas - Crear nueva tarea (admin y gestor)
+app.post('/api/tareas', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
+    try {
+        const { nombre, descripcion } = req.body;
+        
+        if (!nombre || !nombre.trim()) {
+            return res.status(400).json({ error: 'El nombre es requerido' });
+        }
+        
+        const pool = await getPool();
+        
+        // Verificar si ya existe (case-insensitive)
+        const checkResult = await pool.request()
+            .input('nombre', sql.NVarChar(255), nombre.trim())
+            .query('SELECT id, nombre FROM tareas WHERE LOWER(nombre) = LOWER(@nombre)');
+        
+        if (checkResult.recordset.length > 0) {
+            return res.status(409).json({ 
+                error: 'Esta tarea ya existe',
+                id: checkResult.recordset[0].id,
+                nombre: checkResult.recordset[0].nombre
+            });
+        }
+        
+        // Insertar nueva tarea
+        const result = await pool.request()
+            .input('nombre', sql.NVarChar(255), nombre.trim())
+            .input('descripcion', sql.NVarChar(500), descripcion ? descripcion.trim() : null)
+            .query(`
+                INSERT INTO tareas (nombre, descripcion)
+                OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.descripcion
+                VALUES (@nombre, @descripcion)
+            `);
+        
+        const newTask = result.recordset[0];
+        res.status(201).json(newTask);
+    } catch (err) {
+        console.error('Error al crear tarea:', err);
+        res.status(500).json({ error: 'Error al crear tarea', details: err.message });
+    }
+});
+
 // Servir el HTML principal (solo si no está en Blob Storage)
 // Si el HTML está en Blob Storage, esta ruta no se usará
 // app.get('/', (req, res) => {
