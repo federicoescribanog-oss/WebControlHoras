@@ -2,3 +2,8 @@ node_modules/
 .env
 *.log
 .DS_Store
+
+# Archivos de despliegue temporales
+deploy-backend/
+backend.zip
+*.zip

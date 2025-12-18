@@ -1,0 +1,50 @@
+# Archivos a ignorar en despliegues de Azure
+# Similar a .gitignore pero específico para Azure App Service
+
+# Frontend
+informe_completo.html
+404.html
+favicon.svg
+
+# Documentación
+*.md
+!README.md
+
+# Scripts SQL
+*.sql
+
+# Scripts Python
+*.py
+
+# Configuración local
+.env
+.env.local
+.env.*.local
+config-api.js
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules (se instalan automáticamente)
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Temporales
+*.tmp
+*.temp
+deploy-backend/
+backend.zip
+
