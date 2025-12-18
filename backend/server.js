@@ -2,6 +2,8 @@ const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -45,6 +47,43 @@ app.use(cors(corsOptions));
 app.use(express.json());
 // No servir archivos estáticos si la API está separada del frontend
 // app.use(express.static('.')); // Comentado porque el HTML está en Blob Storage
+
+// ========== CONFIGURACIÓN DE AUTENTICACIÓN ==========
+const JWT_SECRET = process.env.JWT_SECRET || 'tu-secret-key-cambiar-en-produccion';
+const JWT_EXPIRES_IN = '24h'; // Token válido por 24 horas
+
+// Middleware para verificar token JWT
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    if (!token) {
+        return res.status(401).json({ error: 'Token de acceso requerido' });
+    }
+    
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Token inválido o expirado' });
+        }
+        req.user = user; // { id, usuario, rol }
+        next();
+    });
+}
+
+// Middleware para verificar roles
+function requireRole(...allowedRoles) {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ error: 'No autenticado' });
+        }
+        
+        if (!allowedRoles.includes(req.user.rol)) {
+            return res.status(403).json({ error: 'No tienes permisos para esta acción' });
+        }
+        
+        next();
+    };
+}
 
 // Configuración de SQL Server
 const sqlConfig = {
@@ -90,10 +129,277 @@ app.use(async (req, res, next) => {
     }
 });
 
-// ========== RUTAS API ==========
+// ========== RUTAS DE AUTENTICACIÓN ==========
 
-// GET /api/registros - Obtener todos los registros
-app.get('/api/registros', async (req, res) => {
+// POST /api/auth/login - Iniciar sesión
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { usuario, password } = req.body;
+        
+        if (!usuario || !password) {
+            return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+        }
+        
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('usuario', sql.NVarChar(100), usuario)
+            .query(`
+                SELECT id, usuario, password_hash, rol, activo
+                FROM usuarios
+                WHERE usuario = @usuario AND activo = 1
+            `);
+        
+        if (result.recordset.length === 0) {
+            return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+        }
+        
+        const user = result.recordset[0];
+        
+        // Verificar contraseña
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+        }
+        
+        // Actualizar último acceso
+        await pool.request()
+            .input('id', sql.Int, user.id)
+            .query('UPDATE usuarios SET fecha_ultimo_acceso = GETDATE() WHERE id = @id');
+        
+        // Generar token JWT
+        const token = jwt.sign(
+            { 
+                id: user.id, 
+                usuario: user.usuario, 
+                rol: user.rol 
+            },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+        
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                usuario: user.usuario,
+                rol: user.rol
+            }
+        });
+    } catch (err) {
+        console.error('Error en login:', err);
+        res.status(500).json({ error: 'Error al iniciar sesión', details: err.message });
+    }
+});
+
+// GET /api/auth/verify - Verificar token
+app.get('/api/auth/verify', authenticateToken, (req, res) => {
+    res.json({
+        valid: true,
+        user: {
+            id: req.user.id,
+            usuario: req.user.usuario,
+            rol: req.user.rol
+        }
+    });
+});
+
+// ========== RUTAS DE USUARIOS (Solo Admin) ==========
+
+// GET /api/usuarios - Obtener todos los usuarios (solo admin)
+app.get('/api/usuarios', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const pool = await getPool();
+        const result = await pool.request().query(`
+            SELECT 
+                id, 
+                usuario, 
+                rol, 
+                activo,
+                fecha_creacion,
+                fecha_ultimo_acceso,
+                creado_por
+            FROM usuarios
+            ORDER BY fecha_creacion DESC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error al obtener usuarios:', err);
+        res.status(500).json({ error: 'Error al obtener usuarios', details: err.message });
+    }
+});
+
+// GET /api/usuarios/:id - Obtener un usuario por ID (solo admin)
+app.get('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+                SELECT 
+                    id, 
+                    usuario, 
+                    rol, 
+                    activo,
+                    fecha_creacion,
+                    fecha_ultimo_acceso,
+                    creado_por
+                FROM usuarios
+                WHERE id = @id
+            `);
+        
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        
+        res.json(result.recordset[0]);
+    } catch (err) {
+        console.error('Error al obtener usuario:', err);
+        res.status(500).json({ error: 'Error al obtener usuario', details: err.message });
+    }
+});
+
+// POST /api/usuarios - Crear nuevo usuario (solo admin)
+app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { usuario, password, rol } = req.body;
+        
+        if (!usuario || !password || !rol) {
+            return res.status(400).json({ error: 'Usuario, contraseña y rol requeridos' });
+        }
+        
+        if (!['admin', 'gestor', 'visor'].includes(rol)) {
+            return res.status(400).json({ error: 'Rol inválido. Debe ser: admin, gestor o visor' });
+        }
+        
+        // Verificar que el usuario no exista
+        const pool = await getPool();
+        const checkResult = await pool.request()
+            .input('usuario', sql.NVarChar(100), usuario)
+            .query('SELECT id FROM usuarios WHERE usuario = @usuario');
+        
+        if (checkResult.recordset.length > 0) {
+            return res.status(409).json({ error: 'El usuario ya existe' });
+        }
+        
+        // Hash de contraseña
+        const passwordHash = await bcrypt.hash(password, 10);
+        
+        // Insertar usuario
+        const result = await pool.request()
+            .input('usuario', sql.NVarChar(100), usuario)
+            .input('password_hash', sql.NVarChar(255), passwordHash)
+            .input('rol', sql.NVarChar(20), rol)
+            .input('creado_por', sql.Int, req.user.id)
+            .query(`
+                INSERT INTO usuarios (usuario, password_hash, rol, creado_por)
+                OUTPUT INSERTED.id
+                VALUES (@usuario, @password_hash, @rol, @creado_por)
+            `);
+        
+        const newId = result.recordset[0].id;
+        res.status(201).json({ 
+            id: newId, 
+            message: 'Usuario creado correctamente',
+            usuario: usuario,
+            rol: rol
+        });
+    } catch (err) {
+        console.error('Error al crear usuario:', err);
+        res.status(500).json({ error: 'Error al crear usuario', details: err.message });
+    }
+});
+
+// PUT /api/usuarios/:id - Actualizar usuario (solo admin)
+app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { usuario, password, rol, activo } = req.body;
+        
+        const pool = await getPool();
+        
+        // Verificar que el usuario existe
+        const checkResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id FROM usuarios WHERE id = @id');
+        
+        if (checkResult.recordset.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        
+        // Construir query de actualización
+        let updateFields = [];
+        const request = pool.request().input('id', sql.Int, id);
+        
+        if (usuario !== undefined) {
+            updateFields.push('usuario = @usuario');
+            request.input('usuario', sql.NVarChar(100), usuario);
+        }
+        
+        if (password !== undefined) {
+            const passwordHash = await bcrypt.hash(password, 10);
+            updateFields.push('password_hash = @password_hash');
+            request.input('password_hash', sql.NVarChar(255), passwordHash);
+        }
+        
+        if (rol !== undefined) {
+            if (!['admin', 'gestor', 'visor'].includes(rol)) {
+                return res.status(400).json({ error: 'Rol inválido' });
+            }
+            updateFields.push('rol = @rol');
+            request.input('rol', sql.NVarChar(20), rol);
+        }
+        
+        if (activo !== undefined) {
+            updateFields.push('activo = @activo');
+            request.input('activo', sql.Bit, activo ? 1 : 0);
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: 'No hay campos para actualizar' });
+        }
+        
+        const query = `UPDATE usuarios SET ${updateFields.join(', ')} WHERE id = @id`;
+        await request.query(query);
+        
+        res.json({ message: 'Usuario actualizado correctamente' });
+    } catch (err) {
+        console.error('Error al actualizar usuario:', err);
+        res.status(500).json({ error: 'Error al actualizar usuario', details: err.message });
+    }
+});
+
+// DELETE /api/usuarios/:id - Eliminar usuario (solo admin)
+app.delete('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // No permitir auto-eliminación
+        if (parseInt(id) === req.user.id) {
+            return res.status(400).json({ error: 'No puedes eliminar tu propio usuario' });
+        }
+        
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('DELETE FROM usuarios WHERE id = @id');
+        
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        
+        res.json({ message: 'Usuario eliminado correctamente' });
+    } catch (err) {
+        console.error('Error al eliminar usuario:', err);
+        res.status(500).json({ error: 'Error al eliminar usuario', details: err.message });
+    }
+});
+
+// ========== RUTAS API (Protegidas) ==========
+
+// GET /api/registros - Obtener todos los registros (todos los roles autenticados)
+app.get('/api/registros', authenticateToken, async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().query(`
@@ -133,8 +439,8 @@ app.get('/api/registros', async (req, res) => {
     }
 });
 
-// POST /api/registros - Insertar nuevo registro
-app.post('/api/registros', async (req, res) => {
+// POST /api/registros - Insertar nuevo registro (admin y gestor)
+app.post('/api/registros', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { phase, task, milestone, start, end, completion, dependencies, assignee, time } = req.body;
         
@@ -177,8 +483,8 @@ app.post('/api/registros', async (req, res) => {
     }
 });
 
-// PUT /api/registros/:id - Actualizar registro
-app.put('/api/registros/:id', async (req, res) => {
+// PUT /api/registros/:id - Actualizar registro (admin y gestor)
+app.put('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { id } = req.params;
         const { phase, task, milestone, start, end, completion, dependencies, assignee, time } = req.body;
@@ -235,8 +541,8 @@ app.put('/api/registros/:id', async (req, res) => {
     }
 });
 
-// DELETE /api/registros/:id - Eliminar registro
-app.delete('/api/registros/:id', async (req, res) => {
+// DELETE /api/registros/:id - Eliminar registro (admin y gestor)
+app.delete('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { id } = req.params;
         

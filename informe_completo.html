@@ -322,10 +322,27 @@
 <body>
 <div class="container">
     <header>
-        <h1>
-            <img src="favicon.svg" alt="Icono" class="header-icon">
-            Gestión de Recursos - Logicalis
-        </h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <h1>
+                <img src="favicon.svg" alt="Icono" class="header-icon">
+                Gestión de Recursos - Logicalis
+            </h1>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span id="userInfo" style="color: var(--text-secondary); font-size: 0.9rem;"></span>
+                <button id="btnGestionUsuarios" class="btn-secondary" onclick="window.location.href='gestion_usuarios.html'" style="display: none;">
+                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                    Usuarios
+                </button>
+                <button class="btn-secondary" onclick="logout()">
+                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                    </svg>
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
     </header>
 
     <div class="main-tabs">
@@ -667,8 +684,99 @@ const API_BASE_URL = isDevelopment
     : 'https://webcontrolhoras-api-g9eucxepedfehfe6.westeurope-01.azurewebsites.net'; // Producción
 
 const API_URL = `${API_BASE_URL}/api/registros`;
+const API_AUTH_URL = `${API_BASE_URL}/api/auth/verify`;
 
 console.log('API URL configurada:', API_URL);
+
+// Variables de autenticación
+let currentUser = null;
+let authToken = null;
+
+// Función para obtener headers con autenticación
+function getAuthHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+    };
+}
+
+// Verificar autenticación al cargar
+async function checkAuthentication() {
+    authToken = localStorage.getItem('authToken');
+    const userData = localStorage.getItem('userData');
+
+    if (!authToken || !userData) {
+        window.location.href = 'login.html';
+        return false;
+    }
+
+    // Verificar que el token sea válido
+    try {
+        const response = await fetch(API_AUTH_URL, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (!response.ok) {
+            // Token inválido, redirigir a login
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userData');
+            window.location.href = 'login.html';
+            return false;
+        }
+
+        const data = await response.json();
+        currentUser = data.user;
+        
+        // Actualizar UI según rol
+        updateUIForRole();
+        
+        return true;
+    } catch (err) {
+        console.error('Error al verificar autenticación:', err);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
+        window.location.href = 'login.html';
+        return false;
+    }
+}
+
+// Actualizar UI según el rol del usuario
+function updateUIForRole() {
+    if (!currentUser) return;
+
+    // Mostrar información del usuario
+    document.getElementById('userInfo').textContent = `${currentUser.usuario} (${currentUser.rol})`;
+
+    // Mostrar botón de gestión de usuarios solo para admin
+    if (currentUser.rol === 'admin') {
+        document.getElementById('btnGestionUsuarios').style.display = 'block';
+    }
+
+    // Ocultar botones de edición/eliminación para visor
+    if (currentUser.rol === 'visor') {
+        // Ocultar botones de añadir/editar/eliminar
+        const addButtons = document.querySelectorAll('[onclick*="showEntryForm"]');
+        const editButtons = document.querySelectorAll('[onclick*="editEntry"]');
+        const deleteButtons = document.querySelectorAll('[onclick*="deleteEntry"]');
+        
+        addButtons.forEach(btn => btn.style.display = 'none');
+        editButtons.forEach(btn => btn.style.display = 'none');
+        deleteButtons.forEach(btn => btn.style.display = 'none');
+        
+        // Ocultar pestaña de editor si existe
+        const editorTab = document.querySelector('[data-maintab="editor"]');
+        if (editorTab) editorTab.style.display = 'none';
+    }
+}
+
+// Función de logout
+function logout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userData');
+    window.location.href = 'login.html';
+}
 
 let jsonData = [];
 let masterPersons = [];
@@ -772,7 +880,15 @@ function initializeApp(data) {
 
 async function loadFromAPI() {
     try {
-        const response = await fetch(API_URL + '?t=' + Date.now()); // Cache bust
+        const response = await fetch(API_URL + '?t=' + Date.now(), {
+            headers: getAuthHeaders()
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            return;
+        }
+        
         if (!response.ok) throw new Error('Error al cargar: ' + response.status);
         const data = await response.json();
         initializeApp(data);
@@ -1014,9 +1130,14 @@ async function saveEntry() {
             // Actualizar registro existente
             const response = await fetch(`${API_URL}/${editingId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(entry)
             });
+            
+            if (response.status === 401 || response.status === 403) {
+                logout();
+                return;
+            }
             
             if (!response.ok) {
                 const error = await response.json();
@@ -1036,9 +1157,14 @@ async function saveEntry() {
             // Insertar nuevo registro
             const response = await fetch(API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(entry)
             });
+            
+            if (response.status === 401 || response.status === 403) {
+                logout();
+                return;
+            }
             
             if (!response.ok) {
                 const error = await response.json();
@@ -1090,8 +1216,14 @@ async function deleteEntry(index) {
     
     try {
         const response = await fetch(`${API_URL}/${entry.id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
         });
+        
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            return;
+        }
         
         if (!response.ok) {
             const error = await response.json();
@@ -1561,7 +1693,14 @@ function renderTimeline() {
 }
 
 // ========== LOAD DATA ON START ==========
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Verificar autenticación antes de cargar datos
+    const isAuthenticated = await checkAuthentication();
+    if (!isAuthenticated) {
+        return; // Ya se redirigió a login
+    }
+    
+    // Cargar datos desde la API
     updateSASStatus();
     loadFromAPI();
 });
