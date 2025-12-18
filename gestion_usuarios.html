@@ -365,6 +365,7 @@
                 <h3 id="modalTitle">Nuevo Usuario</h3>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
+            <div id="modalErrorMessage" class="error-message"></div>
             <form id="userForm">
                 <input type="hidden" id="userId">
                 
@@ -538,13 +539,19 @@
                 document.getElementById('userModal').classList.add('show');
             })
             .catch(err => {
-                showError('Error al cargar datos del usuario: ' + err.message);
+                showError('Error al cargar datos del usuario: ' + err.message, true);
             });
         }
 
         function closeModal() {
             document.getElementById('userModal').classList.remove('show');
             document.getElementById('userForm').reset();
+            // Limpiar mensajes de error del modal
+            const modalErrorDiv = document.getElementById('modalErrorMessage');
+            if (modalErrorDiv) {
+                modalErrorDiv.classList.remove('show');
+                modalErrorDiv.textContent = '';
+            }
             editingUserId = null;
         }
 
@@ -557,25 +564,25 @@
             const activo = document.getElementById('activo').checked;
 
             if (!usuario || !rol) {
-                showError('Por favor, completa todos los campos obligatorios');
+                showError('Por favor, completa todos los campos obligatorios', true);
                 return;
             }
 
             // Validar formato de email
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(usuario)) {
-                showError('El usuario debe ser una dirección de correo electrónico válida');
+                showError('El usuario debe ser una dirección de correo electrónico válida', true);
                 return;
             }
 
             // Validar dominio @es.logicalis.com
             if (!usuario.endsWith('@es.logicalis.com')) {
-                showError('El usuario debe ser del dominio @es.logicalis.com');
+                showError('El usuario debe ser del dominio @es.logicalis.com', true);
                 return;
             }
 
             if (!editingUserId && !password) {
-                showError('La contraseña es obligatoria para nuevos usuarios');
+                showError('La contraseña es obligatoria para nuevos usuarios', true);
                 return;
             }
 
@@ -617,7 +624,7 @@
                 closeModal();
                 await loadUsers();
             } catch (err) {
-                showError(err.message);
+                showError(err.message, true); // Mostrar error en el modal
             }
         });
 
@@ -645,15 +652,26 @@
                 showSuccess('Usuario eliminado correctamente');
                 await loadUsers();
             } catch (err) {
-                showError(err.message);
+                showError(err.message, false); // Error fuera del modal
             }
         }
 
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = message;
-            errorDiv.classList.add('show');
-            setTimeout(() => errorDiv.classList.remove('show'), 5000);
+        function showError(message, inModal = false) {
+            if (inModal) {
+                // Mostrar error en el modal
+                const modalErrorDiv = document.getElementById('modalErrorMessage');
+                if (modalErrorDiv) {
+                    modalErrorDiv.textContent = message;
+                    modalErrorDiv.classList.add('show');
+                    setTimeout(() => modalErrorDiv.classList.remove('show'), 5000);
+                }
+            } else {
+                // Mostrar error en la sección principal
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = message;
+                errorDiv.classList.add('show');
+                setTimeout(() => errorDiv.classList.remove('show'), 5000);
+            }
         }
 
         function showSuccess(message) {
