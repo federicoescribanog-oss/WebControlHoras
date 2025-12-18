@@ -188,12 +188,14 @@ app.post('/api/auth/login', async (req, res) => {
         }
         
         const pool = await getPool();
+        
+        // La columna en usuarios se llama rol_id (INT, FK a roles.id)
         const result = await pool.request()
             .input('usuario', sql.NVarChar(100), usuario)
             .query(`
-                SELECT u.id, u.usuario, u.password_hash, u.rol, r.nombre as rol_nombre, u.activo
+                SELECT u.id, u.usuario, u.password_hash, u.rol_id, r.nombre as rol_nombre, u.activo
                 FROM usuarios u
-                INNER JOIN roles r ON u.rol = r.id
+                INNER JOIN roles r ON u.rol_id = r.id
                 WHERE u.usuario = @usuario AND u.activo = 1
             `);
         
@@ -261,14 +263,14 @@ app.get('/api/usuarios', authenticateToken, requireRole('admin'), async (req, re
             SELECT 
                 u.id, 
                 u.usuario, 
-                u.rol as rol_id,
+                u.rol_id,
                 r.nombre as rol,
                 u.activo,
                 u.fecha_creacion,
                 u.fecha_ultimo_acceso,
                 u.creado_por
             FROM usuarios u
-            INNER JOIN roles r ON u.rol = r.id
+            INNER JOIN roles r ON u.rol_id = r.id
             ORDER BY u.fecha_creacion DESC
         `);
         
@@ -290,14 +292,14 @@ app.get('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
                 SELECT 
                     u.id, 
                     u.usuario, 
-                    u.rol as rol_id,
+                    u.rol_id,
                     r.nombre as rol,
                     u.activo,
                     u.fecha_creacion,
                     u.fecha_ultimo_acceso,
                     u.creado_por
                 FROM usuarios u
-                INNER JOIN roles r ON u.rol = r.id
+                INNER JOIN roles r ON u.rol_id = r.id
                 WHERE u.id = @id
             `);
         
@@ -382,12 +384,12 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
         const result = await pool.request()
             .input('usuario', sql.NVarChar(100), usuario)
             .input('password_hash', sql.NVarChar(255), passwordHash)
-            .input('rol', sql.Int, finalRolId)
+            .input('rol_id', sql.Int, finalRolId)
             .input('creado_por', sql.Int, req.user.id)
             .query(`
-                INSERT INTO usuarios (usuario, password_hash, rol, creado_por)
+                INSERT INTO usuarios (usuario, password_hash, rol_id, creado_por)
                 OUTPUT INSERTED.id
-                VALUES (@usuario, @password_hash, @rol, @creado_por)
+                VALUES (@usuario, @password_hash, @rol_id, @creado_por)
             `);
         
         const newId = result.recordset[0].id;
@@ -487,8 +489,8 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
         }
         
         if (finalRolId !== undefined) {
-            updateFields.push('rol = @rol');
-            request.input('rol', sql.Int, finalRolId);
+            updateFields.push('rol_id = @rol_id');
+            request.input('rol_id', sql.Int, finalRolId);
         }
         
         if (activo !== undefined) {

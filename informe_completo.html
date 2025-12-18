@@ -774,6 +774,31 @@ function updateUIForRole() {
     }
 }
 
+// Obtener el rol del usuario actual
+function getUserRole() {
+    if (!currentUser) {
+        // Intentar obtener del localStorage si no está en memoria
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+            try {
+                const user = JSON.parse(userData);
+                return user.rol || null;
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    }
+    return currentUser.rol || null;
+}
+
+// Verificar si el usuario tiene un rol requerido
+function hasRequiredRole(...requiredRoles) {
+    const userRole = getUserRole();
+    if (!userRole) return false;
+    return requiredRoles.includes(userRole);
+}
+
 // Función de logout
 function logout() {
     localStorage.removeItem('authToken');
