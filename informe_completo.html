@@ -538,9 +538,9 @@
                     <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
                         <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
                     </svg>
-                    Guardar en Azure
+                    Sincronizar Base de Datos
                 </button>
-                <span class="file-info" id="fileInfo">data2 -Horas.json</span>
+                <span class="file-info" id="fileInfo">Base de Datos SQL Server</span>
                 <span class="file-info" id="sasStatus" style="font-size:0.75rem;color:var(--text-secondary);"></span>
             </div>
 
@@ -636,7 +636,7 @@
                                 <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;">
                                     <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/>
                                 </svg>
-                                Entradas del JSON
+                                Entradas de la Base de Datos
                             </h2>
                             <span style="color:var(--text-secondary);font-size:0.85rem;" id="entriesCount">0 entradas</span>
                         </div>
@@ -655,57 +655,28 @@
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-// Configuración Azure Blob Storage
-const BLOB_FILE_NAME = 'data2 -Horas.json';
-// ⚠️ CONFIGURA AQUÍ TU SAS TOKEN: Copia el token completo después del "?" de la URL generada en Azure Portal
-// Ejemplo: 'sv=2022-11-02&ss=b&srt=o&sp=rwc&se=2025-12-31T23:59:59Z&st=2024-01-01T00:00:00Z&spr=https&sig=...'
-const AZURE_SAS_TOKEN = 'sv=2024-11-04&ss=bf&srt=co&sp=rwdlacyx&se=2030-12-30T23:09:50Z&st=2025-12-17T14:54:50Z&spr=https&sig=%2BfUltjSRn2%2BoSN5Lvgs9jVu5LGW2Q%2BGzcxIZC1yAQc8%3D'; // Pega aquí tu SAS token con permisos de escritura (sp=rwc)
+// Configuración API Backend
+// ⚠️ IMPORTANTE: Si tu HTML está en Azure Blob Storage, configura aquí la URL de tu API backend
+// Detectar entorno
+const isDevelopment = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
 
-// Construir URL completa del blob
-// IMPORTANTE: Para leer usamos el static website, para escribir usamos el blob service endpoint
-function getBlobUrl() {
-    // Para lectura: usar static website endpoint (más rápido)
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/${BLOB_FILE_NAME}`;
-}
+// ⚠️ CONFIGURA LA URL DE PRODUCCIÓN AQUÍ (URL de tu Azure App Service o Function App)
+const API_BASE_URL = isDevelopment 
+    ? 'http://localhost:3000'  // Desarrollo local
+    : 'https://tu-api-backend.azurewebsites.net'; // ⚠️ REEMPLAZA CON TU URL DE PRODUCCIÓN
 
-function getBlobUrlForWrite() {
-    // Para escritura: usar blob service endpoint (permite PUT)
-    // Extraer nombre del storage account de la URL actual
-    // Ejemplo: webcontrolhoras.z6.web.core.windows.net -> webcontrolhoras
-    const hostname = window.location.hostname;
-    const storageAccountMatch = hostname.match(/^([^.]+)\./);
-    if (!storageAccountMatch) {
-        throw new Error('No se pudo detectar el nombre del Storage Account desde la URL');
-    }
-    const storageAccountName = storageAccountMatch[1];
-    return `https://${storageAccountName}.blob.core.windows.net/$web/${BLOB_FILE_NAME}`;
-}
+const API_URL = `${API_BASE_URL}/api/registros`;
 
-function getBlobUrlWithSAS() {
-    if (!AZURE_SAS_TOKEN) return null;
-    const url = getBlobUrl();
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}${AZURE_SAS_TOKEN}`;
-}
-
-function getBlobUrlWithSASForWrite() {
-    if (!AZURE_SAS_TOKEN) return null;
-    const url = getBlobUrlForWrite();
-    // El SAS token ya viene con el formato correcto, solo añadirlo con ?
-    const separator = url.includes('?') ? '&' : '?';
-    // Asegurarse de que el token no tenga ? al inicio
-    const cleanToken = AZURE_SAS_TOKEN.startsWith('?') ? AZURE_SAS_TOKEN.substring(1) : AZURE_SAS_TOKEN;
-    return `${url}${separator}${cleanToken}`;
-}
+console.log('API URL configurada:', API_URL);
 
 let jsonData = [];
 let masterPersons = [];
 let masterProjects = [];
 let masterTasks = [];
 let selectedPersons = new Set();
-let editingIndex = -1;
-let currentFileName = 'data2 -Horas.json';
+let editingId = null; // Cambiar de índice a ID de base de datos
+let currentFileName = 'Base de Datos SQL Server';
 
 // Filtros para tabla de entradas
 let entryFilters = { person: '', project: '', task: '', start: '', end: '' };
@@ -799,9 +770,9 @@ function initializeApp(data) {
     refreshAll();
 }
 
-async function loadFromAzure() {
+async function loadFromAPI() {
     try {
-        const response = await fetch(getBlobUrl() + '?t=' + Date.now()); // Cache bust
+        const response = await fetch(API_URL + '?t=' + Date.now()); // Cache bust
         if (!response.ok) throw new Error('Error al cargar: ' + response.status);
         const data = await response.json();
         initializeApp(data);
@@ -809,117 +780,26 @@ async function loadFromAzure() {
         document.getElementById('loadingScreen').innerHTML = `
             <div class="error-box">
                 <div style="font-size:2rem;margin-bottom:1rem;">❌</div>
-                <div>Error al cargar datos: ${err.message}</div>
-                <button onclick="loadFromAzure()" style="margin-top:1rem;">🔄 Reintentar</button>
+                <div>Error al cargar datos desde la base de datos: ${err.message}</div>
+                <div style="margin-top:0.5rem;font-size:0.9rem;color:var(--text-secondary);">Verifica que el servidor backend esté corriendo y que la conexión a SQL Server esté configurada.</div>
+                <button onclick="loadFromAPI()" style="margin-top:1rem;">🔄 Reintentar</button>
             </div>`;
     }
 }
 
-async function saveToAzure() {
-    // Verificar si hay SAS token configurado
-    if (!AZURE_SAS_TOKEN || AZURE_SAS_TOKEN.trim() === '') {
-        alert('⚠️ No hay SAS token configurado en el código.\n\nPor favor, configura AZURE_SAS_TOKEN en el código fuente.\n\nMientras tanto, puedes usar "Descargar JSON" como alternativa.');
-        return;
-    }
-    
-    // Para escritura, usar blob service endpoint (no static website)
-    let blobUrlWithSAS;
-    try {
-        blobUrlWithSAS = getBlobUrlWithSASForWrite();
-    } catch (err) {
-        alert('❌ Error: ' + err.message);
-        return;
-    }
-    
-
-    if (!blobUrlWithSAS) {
-        alert('❌ Error: No se pudo construir la URL con SAS token.');
-        return;
-    }
-    
-    // Mostrar indicador de guardado
+async function saveToAPI() {
+    // Los cambios ya se guardan automáticamente cuando se insertan/actualizan registros
+    // Esta función recarga los datos desde la base de datos para sincronizar
     const saveBtn = document.getElementById('saveFileBtn');
     const originalText = saveBtn.textContent;
-    saveBtn.textContent = '⏳ Guardando...';
+    saveBtn.textContent = '⏳ Sincronizando...';
     saveBtn.disabled = true;
     
     try {
-        const jsonContent = JSON.stringify(jsonData, null, '\t');
-        const blob = new Blob([jsonContent], { type: 'application/json' });
-        
-        console.log('=== DEBUG: Guardando en Azure ===');
-        console.log('URL completa:', blobUrlWithSAS);
-        console.log('Tamaño del contenido:', blob.size, 'bytes');
-        
-        // Primero verificar CORS con OPTIONS (preflight)
-        try {
-            console.log('Verificando CORS...');
-            const optionsResponse = await fetch(blobUrlWithSAS, {
-                method: 'OPTIONS',
-                headers: {
-                    'Origin': window.location.origin,
-                    'Access-Control-Request-Method': 'PUT',
-                    'Access-Control-Request-Headers': 'x-ms-blob-type,content-type,x-ms-version'
-                }
-            });
-            console.log('CORS preflight status:', optionsResponse.status);
-        } catch (corsErr) {
-            console.warn('CORS preflight falló (puede ser normal):', corsErr);
-        }
-        
-        // Usar PUT request para subir el blob
-        console.log('Enviando PUT request...');
-        const response = await fetch(blobUrlWithSAS, {
-            method: 'PUT',
-            mode: 'cors', // Asegurar modo CORS
-            headers: {
-                'x-ms-blob-type': 'BlockBlob',
-                'Content-Type': 'application/json',
-                'x-ms-version': '2020-10-02'
-            },
-            body: blob
-        });
-        
-        console.log('Response status:', response.status);
-        console.log('Response headers:', [...response.headers.entries()]);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Error response:', errorText);
-            throw new Error(`Error ${response.status}: ${errorText.substring(0, 200)}`);
-        }
-        
-        console.log('✅ Guardado exitoso');
-        alert('✅ Archivo guardado correctamente en Azure Blob Storage');
+        await loadFromAPI();
+        alert('✅ Datos sincronizados correctamente desde la base de datos');
     } catch (err) {
-        console.error('=== ERROR DETALLADO ===');
-        console.error('Error:', err);
-        console.error('URL usada:', blobUrlWithSAS);
-        console.error('Error name:', err.name);
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-        
-        let errorMsg = `❌ Error al guardar: ${err.message}`;
-        
-        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.name === 'TypeError') {
-            errorMsg += '\n\n⚠️ PROBLEMA DE CORS DETECTADO\n\n';
-            errorMsg += 'SOLUCIÓN: Configura CORS en Azure Portal:\n\n';
-            errorMsg += '1. Azure Portal → Storage Account "webcontrolhoras"\n';
-            errorMsg += '2. Menú: "Seguridad + redes" → "Resource sharing (CORS)"\n';
-            errorMsg += '3. Blob service → "Add" y configura:\n';
-            errorMsg += '   • Allowed origins: *\n';
-            errorMsg += '   • Allowed methods: GET, PUT, OPTIONS\n';
-            errorMsg += '   • Allowed headers: *\n';
-            errorMsg += '   • Exposed headers: *\n';
-            errorMsg += '   • Max age: 3600\n';
-            errorMsg += '4. Guarda y espera 1-2 minutos\n';
-            errorMsg += '5. Abre la consola del navegador (F12) para más detalles\n\n';
-            errorMsg += 'URL que se intentó usar:\n' + blobUrlWithSAS.substring(0, 100) + '...';
-        } else if (err.message.includes('403') || err.message.includes('AuthenticationFailed')) {
-            errorMsg += '\n\n⚠️ El SAS token puede haber expirado o no tener permisos de escritura.\nVerifica el token en el código fuente.';
-        }
-        
-        alert(errorMsg);
+        alert(`❌ Error al sincronizar: ${err.message}`);
     } finally {
         saveBtn.textContent = originalText;
         saveBtn.disabled = false;
@@ -939,13 +819,8 @@ function refreshAll() {
 
 function updateSASStatus() {
     const statusEl = document.getElementById('sasStatus');
-    if (AZURE_SAS_TOKEN && AZURE_SAS_TOKEN.trim() !== '') {
-        statusEl.textContent = '✓ SAS Token configurado';
-        statusEl.style.color = 'var(--success)';
-    } else {
-        statusEl.textContent = '⚠ SAS Token no configurado - Usa "Descargar JSON"';
-        statusEl.style.color = 'var(--warning)';
-    }
+    statusEl.textContent = '✓ Conectado a Base de Datos SQL Server';
+    statusEl.style.color = 'var(--success)';
 }
 
 // ========== MASTER LISTS ==========
@@ -1104,10 +979,10 @@ function updateEntriesBody() {
     document.getElementById('entriesCount').textContent = `${filtered.length}/${jsonData.length} entradas`;
 }
 
-function saveEntry() {
-    const person = document.getElementById('entryPerson').value;
-    const project = document.getElementById('entryProject').value;
-    const task = document.getElementById('entryTask').value;
+async function saveEntry() {
+    const person = document.getElementById('entryPerson').value.trim();
+    const project = document.getElementById('entryProject').value.trim();
+    const task = document.getElementById('entryTask').value.trim();
     const start = document.getElementById('entryStart').value;
     const end = document.getElementById('entryEnd').value;
     const time = parseInt(document.getElementById('entryTime').value) || 8;
@@ -1118,29 +993,79 @@ function saveEntry() {
     }
     
     const entry = {
-        phase: project, task, milestone: null,
-        start: formatDateFromInput(start), end: formatDateFromInput(end),
-        completion: 0, dependencies: null, assignee: person, time
+        phase: project,
+        task: task,
+        milestone: null,
+        start: formatDateFromInput(start),
+        end: formatDateFromInput(end),
+        completion: 0,
+        dependencies: null,
+        assignee: person,
+        time: time
     };
     
-    if (editingIndex >= 0) {
-        jsonData[editingIndex] = entry;
-        editingIndex = -1;
-        document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
-        document.getElementById('cancelEditBtn').classList.add('hidden');
-    } else {
-        jsonData.push(entry);
-    }
+    const saveBtn = document.getElementById('saveEntryBtn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = '⏳ Guardando...';
+    saveBtn.disabled = true;
     
-    clearEntryForm();
-    updateMastersFromData();
-    selectedPersons = new Set(masterPersons);
-    refreshAll();
+    try {
+        if (editingId) {
+            // Actualizar registro existente
+            const response = await fetch(`${API_URL}/${editingId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(entry)
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Error al actualizar');
+            }
+            
+            // Actualizar en el array local
+            const index = jsonData.findIndex(d => d.id === editingId);
+            if (index >= 0) {
+                jsonData[index] = { ...entry, id: editingId };
+            }
+            
+            editingId = null;
+            document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+        } else {
+            // Insertar nuevo registro
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(entry)
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Error al insertar');
+            }
+            
+            const result = await response.json();
+            // Agregar al array local con el ID retornado
+            jsonData.push({ ...entry, id: result.id });
+        }
+        
+        clearEntryForm();
+        updateMastersFromData();
+        selectedPersons = new Set(masterPersons);
+        refreshAll();
+    } catch (err) {
+        alert(`❌ Error al guardar: ${err.message}`);
+        console.error('Error:', err);
+    } finally {
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+    }
 }
 
 function editEntry(index) {
     const entry = jsonData[index];
-    editingIndex = index;
+    editingId = entry.id; // Usar ID de base de datos en lugar de índice
     
     document.getElementById('entryPerson').value = entry.assignee || '';
     document.getElementById('entryProject').value = entry.phase || '';
@@ -1154,11 +1079,33 @@ function editEntry(index) {
     document.getElementById('entryPerson').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function deleteEntry(index) {
+async function deleteEntry(index) {
     if (!confirm('¿Eliminar esta entrada?')) return;
-    jsonData.splice(index, 1);
-    updateMastersFromData();
-    refreshAll();
+    
+    const entry = jsonData[index];
+    if (!entry.id) {
+        alert('Error: No se puede eliminar - falta ID del registro');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/${entry.id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al eliminar');
+        }
+        
+        // Eliminar del array local
+        jsonData.splice(index, 1);
+        updateMastersFromData();
+        refreshAll();
+    } catch (err) {
+        alert(`❌ Error al eliminar: ${err.message}`);
+        console.error('Error:', err);
+    }
 }
 
 function clearEntryForm() {
@@ -1168,7 +1115,7 @@ function clearEntryForm() {
     document.getElementById('entryStart').value = '';
     document.getElementById('entryEnd').value = '';
     document.getElementById('entryTime').value = 8;
-    editingIndex = -1;
+    editingId = null; // Resetear ID de edición
     document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
     document.getElementById('cancelEditBtn').classList.add('hidden');
 }
@@ -1616,7 +1563,7 @@ function renderTimeline() {
 // ========== LOAD DATA ON START ==========
 document.addEventListener('DOMContentLoaded', () => {
     updateSASStatus();
-    loadFromAzure();
+    loadFromAPI();
 });
 
 // ========== EVENTS ==========
@@ -1683,7 +1630,7 @@ document.getElementById('clearFilters').addEventListener('click', () => {
 });
 
 
-document.getElementById('refreshDataBtn').addEventListener('click', loadFromAzure);
+document.getElementById('refreshDataBtn').addEventListener('click', loadFromAPI);
 
 document.getElementById('addPersonBtn').addEventListener('click', () => addMaster('person'));
 document.getElementById('addProjectBtn').addEventListener('click', () => addMaster('project'));
@@ -1696,7 +1643,7 @@ document.getElementById('newTaskInput').addEventListener('keypress', (e) => { if
 document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
 document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
 document.getElementById('downloadJsonBtn').addEventListener('click', downloadJson);
-document.getElementById('saveFileBtn').addEventListener('click', saveToAzure);
+document.getElementById('saveFileBtn').addEventListener('click', saveToAPI);
 </script>
 </body>
 </html>
