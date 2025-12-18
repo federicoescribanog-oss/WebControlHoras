@@ -661,10 +661,10 @@
 const isDevelopment = window.location.hostname === 'localhost' || 
                       window.location.hostname === '127.0.0.1';
 
-// ⚠️ CONFIGURA LA URL DE PRODUCCIÓN AQUÍ (URL de tu Azure App Service o Function App)
+// URL de producción - Azure App Service
 const API_BASE_URL = isDevelopment 
     ? 'http://localhost:3000'  // Desarrollo local
-    : 'https://tu-api-backend.azurewebsites.net'; // ⚠️ REEMPLAZA CON TU URL DE PRODUCCIÓN
+    : 'https://webcontrolhoras-api-g9eucxepedfehfe6.westeurope-01.azurewebsites.net'; // Producción
 
 const API_URL = `${API_BASE_URL}/api/registros`;
 
