@@ -17,30 +17,38 @@ const corsOptions = {
         // Permitir sin origen (aplicaciones móviles, Postman, etc.)
         if (!origin) return callback(null, true);
         
-        // Lista de orígenes permitidos (agregar la URL de tu Blob Storage)
+        // Lista de orígenes permitidos explícitos
         const allowedOrigins = [
-            'https://webcontrolhoras.z6.web.core.windows.net', // Ejemplo - reemplazar con tu URL
-            'https://*.web.core.windows.net', // Permitir cualquier Blob Storage de Azure
+            'https://webcontrolhoras.z6.web.core.windows.net', // Tu Blob Storage
             'http://localhost:5500', // Para desarrollo local
             'http://127.0.0.1:5500',
+            'http://localhost:8080',
+            'http://127.0.0.1:8080',
             process.env.ALLOWED_ORIGIN // Variable de entorno para producción
         ].filter(Boolean);
         
-        // Permitir si está en la lista o si coincide con patrón
-        if (allowedOrigins.some(allowed => origin.includes(allowed.replace('*.', '')))) {
-            callback(null, true);
-        } else {
-            // En desarrollo, permitir todos (cambiar en producción)
-            if (process.env.NODE_ENV !== 'production') {
-                callback(null, true);
-            } else {
-                callback(new Error('No permitido por CORS'));
-            }
+        // Verificar si el origen está en la lista explícita
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
         }
+        
+        // Permitir cualquier dominio que termine en .web.core.windows.net (Blob Storage de Azure)
+        if (origin.endsWith('.web.core.windows.net')) {
+            return callback(null, true);
+        }
+        
+        // En desarrollo, permitir todos (cambiar en producción)
+        if (process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        
+        // En producción, rechazar si no está permitido
+        callback(new Error('No permitido por CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Request-Method', 'Access-Control-Request-Headers'],
+    optionsSuccessStatus: 200 // Algunos navegadores antiguos requieren esto
 };
 
 app.use(cors(corsOptions));
