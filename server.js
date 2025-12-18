@@ -73,7 +73,16 @@ app.use(express.json());
 // app.use(express.static('.')); // Comentado porque el HTML está en Blob Storage
 
 // ========== CONFIGURACIÓN DE AUTENTICACIÓN ==========
-const JWT_SECRET = process.env.JWT_SECRET || 'tu-secret-key-cambiar-en-produccion';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Validar que JWT_SECRET esté configurado
+if (!JWT_SECRET) {
+    console.error('❌ ERROR: Variable de entorno JWT_SECRET no configurada');
+    console.error('Configura esta variable en Azure App Service:');
+    console.error('   - Configuration → Application settings');
+    console.error('   - Agregar: JWT_SECRET');
+    process.exit(1);
+}
 const JWT_EXPIRES_IN = '24h'; // Token válido por 24 horas
 
 // Middleware para verificar token JWT
@@ -109,12 +118,12 @@ function requireRole(...allowedRoles) {
     };
 }
 
-// Configuración de SQL Server
+// Configuración de SQL Server - Todas las credenciales desde variables de entorno
 const sqlConfig = {
-    user: process.env.DB_USER || 'administrador',
-    password: process.env.DB_PASSWORD || 'l0g1C4l1S2025',
-    server: process.env.DB_SERVER || 'controlhoraslogicalis.database.windows.net',
-    database: process.env.DB_NAME || 'bbddcontrolhoras',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
+    database: process.env.DB_NAME,
     options: {
         encrypt: true, // Azure requiere encriptación
         trustServerCertificate: false,
@@ -126,6 +135,20 @@ const sqlConfig = {
         idleTimeoutMillis: 30000
     }
 };
+
+// Validar que todas las variables de entorno estén configuradas
+if (!sqlConfig.user || !sqlConfig.password || !sqlConfig.server || !sqlConfig.database) {
+    console.error('❌ ERROR: Faltan variables de entorno de base de datos:');
+    console.error('   DB_USER:', sqlConfig.user ? '✓' : '✗ FALTA');
+    console.error('   DB_PASSWORD:', sqlConfig.password ? '✓' : '✗ FALTA');
+    console.error('   DB_SERVER:', sqlConfig.server ? '✓' : '✗ FALTA');
+    console.error('   DB_NAME:', sqlConfig.database ? '✓' : '✗ FALTA');
+    console.error('');
+    console.error('Configura estas variables en Azure App Service:');
+    console.error('   - Configuration → Application settings');
+    console.error('   - Agregar: DB_USER, DB_PASSWORD, DB_SERVER, DB_NAME');
+    process.exit(1);
+}
 
 // Pool de conexiones
 let pool = null;
@@ -165,29 +188,14 @@ app.post('/api/auth/login', async (req, res) => {
         }
         
         const pool = await getPool();
-        
-        // Intentar primero con JOIN (si rol es INT)
-        let result;
-        try {
-            result = await pool.request()
-                .input('usuario', sql.NVarChar(100), usuario)
-                .query(`
-                    SELECT u.id, u.usuario, u.password_hash, u.rol, r.nombre as rol_nombre, u.activo
-                    FROM usuarios u
-                    INNER JOIN roles r ON u.rol = r.id
-                    WHERE u.usuario = @usuario AND u.activo = 1
-                `);
-        } catch (joinError) {
-            // Si falla el JOIN, intentar sin JOIN (rol es string)
-            console.warn('JOIN falló, intentando sin JOIN:', joinError.message);
-            result = await pool.request()
-                .input('usuario', sql.NVarChar(100), usuario)
-                .query(`
-                    SELECT id, usuario, password_hash, rol as rol_nombre, activo
-                    FROM usuarios
-                    WHERE usuario = @usuario AND activo = 1
-                `);
-        }
+        const result = await pool.request()
+            .input('usuario', sql.NVarChar(100), usuario)
+            .query(`
+                SELECT u.id, u.usuario, u.password_hash, u.rol, r.nombre as rol_nombre, u.activo
+                FROM usuarios u
+                INNER JOIN roles r ON u.rol = r.id
+                WHERE u.usuario = @usuario AND u.activo = 1
+            `);
         
         if (result.recordset.length === 0) {
             return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
