@@ -168,9 +168,10 @@ app.post('/api/auth/login', async (req, res) => {
         const result = await pool.request()
             .input('usuario', sql.NVarChar(100), usuario)
             .query(`
-                SELECT id, usuario, password_hash, rol, activo
-                FROM usuarios
-                WHERE usuario = @usuario AND activo = 1
+                SELECT u.id, u.usuario, u.password_hash, u.rol, r.nombre as rol_nombre, u.activo
+                FROM usuarios u
+                INNER JOIN roles r ON u.rol = r.id
+                WHERE u.usuario = @usuario AND u.activo = 1
             `);
         
         if (result.recordset.length === 0) {
@@ -190,12 +191,12 @@ app.post('/api/auth/login', async (req, res) => {
             .input('id', sql.Int, user.id)
             .query('UPDATE usuarios SET fecha_ultimo_acceso = GETDATE() WHERE id = @id');
         
-        // Generar token JWT
+        // Generar token JWT (usar nombre del rol, no el ID)
         const token = jwt.sign(
             { 
                 id: user.id, 
                 usuario: user.usuario, 
-                rol: user.rol 
+                rol: user.rol_nombre 
             },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
@@ -206,7 +207,7 @@ app.post('/api/auth/login', async (req, res) => {
             user: {
                 id: user.id,
                 usuario: user.usuario,
-                rol: user.rol
+                rol: user.rol_nombre
             }
         });
     } catch (err) {
@@ -235,15 +236,17 @@ app.get('/api/usuarios', authenticateToken, requireRole('admin'), async (req, re
         const pool = await getPool();
         const result = await pool.request().query(`
             SELECT 
-                id, 
-                usuario, 
-                rol, 
-                activo,
-                fecha_creacion,
-                fecha_ultimo_acceso,
-                creado_por
-            FROM usuarios
-            ORDER BY fecha_creacion DESC
+                u.id, 
+                u.usuario, 
+                u.rol as rol_id,
+                r.nombre as rol,
+                u.activo,
+                u.fecha_creacion,
+                u.fecha_ultimo_acceso,
+                u.creado_por
+            FROM usuarios u
+            INNER JOIN roles r ON u.rol = r.id
+            ORDER BY u.fecha_creacion DESC
         `);
         
         res.json(result.recordset);
@@ -262,15 +265,17 @@ app.get('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
             .input('id', sql.Int, id)
             .query(`
                 SELECT 
-                    id, 
-                    usuario, 
-                    rol, 
-                    activo,
-                    fecha_creacion,
-                    fecha_ultimo_acceso,
-                    creado_por
-                FROM usuarios
-                WHERE id = @id
+                    u.id, 
+                    u.usuario, 
+                    u.rol as rol_id,
+                    r.nombre as rol,
+                    u.activo,
+                    u.fecha_creacion,
+                    u.fecha_ultimo_acceso,
+                    u.creado_por
+                FROM usuarios u
+                INNER JOIN roles r ON u.rol = r.id
+                WHERE u.id = @id
             `);
         
         if (result.recordset.length === 0) {
@@ -287,10 +292,10 @@ app.get('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
 // POST /api/usuarios - Crear nuevo usuario (solo admin)
 app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
-        const { usuario, password, rol } = req.body;
+        const { usuario, password, rol, rol_id } = req.body;
         
-        if (!usuario || !password || !rol) {
-            return res.status(400).json({ error: 'Usuario, contraseña y rol requeridos' });
+        if (!usuario || !password) {
+            return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
         }
         
         // Validar formato de email
@@ -304,12 +309,35 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
             return res.status(400).json({ error: 'El usuario debe ser del dominio @es.logicalis.com' });
         }
         
-        if (!['admin', 'gestor', 'visor'].includes(rol)) {
-            return res.status(400).json({ error: 'Rol inválido. Debe ser: admin, gestor o visor' });
+        // Obtener rol_id si se envió nombre del rol (compatibilidad)
+        let finalRolId = rol_id;
+        if (rol && !rol_id) {
+            const pool = await getPool();
+            const rolResult = await pool.request()
+                .input('nombre', sql.NVarChar(20), rol)
+                .query('SELECT id FROM roles WHERE nombre = @nombre');
+            if (rolResult.recordset.length > 0) {
+                finalRolId = rolResult.recordset[0].id;
+            } else {
+                return res.status(400).json({ error: 'Rol inválido. Debe ser: admin, gestor o visor' });
+            }
+        }
+        
+        if (!finalRolId) {
+            return res.status(400).json({ error: 'Rol requerido' });
+        }
+        
+        // Verificar que el rol existe
+        const pool = await getPool();
+        const rolCheck = await pool.request()
+            .input('rol_id', sql.Int, finalRolId)
+            .query('SELECT id FROM roles WHERE id = @rol_id');
+        
+        if (rolCheck.recordset.length === 0) {
+            return res.status(400).json({ error: 'Rol inválido' });
         }
         
         // Verificar que el usuario no exista
-        const pool = await getPool();
         const checkResult = await pool.request()
             .input('usuario', sql.NVarChar(100), usuario)
             .query('SELECT id FROM usuarios WHERE usuario = @usuario');
@@ -321,11 +349,17 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
         // Hash de contraseña
         const passwordHash = await bcrypt.hash(password, 10);
         
+        // Obtener nombre del rol para la respuesta
+        const rolNameResult = await pool.request()
+            .input('rol_id', sql.Int, finalRolId)
+            .query('SELECT nombre FROM roles WHERE id = @rol_id');
+        const rolNombre = rolNameResult.recordset[0].nombre;
+        
         // Insertar usuario
         const result = await pool.request()
             .input('usuario', sql.NVarChar(100), usuario)
             .input('password_hash', sql.NVarChar(255), passwordHash)
-            .input('rol', sql.NVarChar(20), rol)
+            .input('rol', sql.Int, finalRolId)
             .input('creado_por', sql.Int, req.user.id)
             .query(`
                 INSERT INTO usuarios (usuario, password_hash, rol, creado_por)
@@ -338,7 +372,8 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
             id: newId, 
             message: 'Usuario creado correctamente',
             usuario: usuario,
-            rol: rol
+            rol: rolNombre,
+            rol_id: finalRolId
         });
     } catch (err) {
         console.error('Error al crear usuario:', err);
@@ -350,7 +385,7 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
 app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { usuario, password, rol, activo } = req.body;
+        const { usuario, password, rol, rol_id, activo } = req.body;
         
         const pool = await getPool();
         
@@ -361,6 +396,30 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
         
         if (checkResult.recordset.length === 0) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        
+        // Obtener rol_id si se envió nombre del rol (compatibilidad)
+        let finalRolId = rol_id;
+        if (rol && !rol_id) {
+            const rolResult = await pool.request()
+                .input('nombre', sql.NVarChar(20), rol)
+                .query('SELECT id FROM roles WHERE nombre = @nombre');
+            if (rolResult.recordset.length > 0) {
+                finalRolId = rolResult.recordset[0].id;
+            } else {
+                return res.status(400).json({ error: 'Rol inválido. Debe ser: admin, gestor o visor' });
+            }
+        }
+        
+        if (finalRolId) {
+            // Verificar que el rol existe
+            const rolCheck = await pool.request()
+                .input('rol_id', sql.Int, finalRolId)
+                .query('SELECT id FROM roles WHERE id = @rol_id');
+            
+            if (rolCheck.recordset.length === 0) {
+                return res.status(400).json({ error: 'Rol inválido' });
+            }
         }
         
         // Construir query de actualización
@@ -379,6 +438,21 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
                 return res.status(400).json({ error: 'El usuario debe ser del dominio @es.logicalis.com' });
             }
             
+            // Verificar que el nuevo usuario no exista (si es diferente)
+            const existingUser = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT usuario FROM usuarios WHERE id = @id');
+            
+            if (existingUser.recordset.length > 0 && existingUser.recordset[0].usuario !== usuario) {
+                const duplicateCheck = await pool.request()
+                    .input('usuario', sql.NVarChar(100), usuario)
+                    .query('SELECT id FROM usuarios WHERE usuario = @usuario');
+                
+                if (duplicateCheck.recordset.length > 0) {
+                    return res.status(409).json({ error: 'El usuario ya existe' });
+                }
+            }
+            
             updateFields.push('usuario = @usuario');
             request.input('usuario', sql.NVarChar(100), usuario);
         }
@@ -389,12 +463,9 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
             request.input('password_hash', sql.NVarChar(255), passwordHash);
         }
         
-        if (rol !== undefined) {
-            if (!['admin', 'gestor', 'visor'].includes(rol)) {
-                return res.status(400).json({ error: 'Rol inválido' });
-            }
+        if (finalRolId !== undefined) {
             updateFields.push('rol = @rol');
-            request.input('rol', sql.NVarChar(20), rol);
+            request.input('rol', sql.Int, finalRolId);
         }
         
         if (activo !== undefined) {
@@ -407,9 +478,28 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
         }
         
         const query = `UPDATE usuarios SET ${updateFields.join(', ')} WHERE id = @id`;
-        await request.query(query);
+        const result = await request.query(query);
         
-        res.json({ message: 'Usuario actualizado correctamente' });
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        
+        // Obtener datos actualizados para la respuesta
+        let rolNombre = null;
+        if (finalRolId) {
+            const rolNameResult = await pool.request()
+                .input('rol_id', sql.Int, finalRolId)
+                .query('SELECT nombre FROM roles WHERE id = @rol_id');
+            if (rolNameResult.recordset.length > 0) {
+                rolNombre = rolNameResult.recordset[0].nombre;
+            }
+        }
+        
+        res.json({ 
+            message: 'Usuario actualizado correctamente',
+            rol: rolNombre || undefined,
+            rol_id: finalRolId || undefined
+        });
     } catch (err) {
         console.error('Error al actualizar usuario:', err);
         res.status(500).json({ error: 'Error al actualizar usuario', details: err.message });
@@ -487,32 +577,41 @@ app.get('/api/registros', authenticateToken, async (req, res) => {
         const pool = await getPool();
         const result = await pool.request().query(`
             SELECT 
-                id,
-                phase,
-                task,
-                milestone,
-                FORMAT([start], 'dd/MM/yyyy') as [start],
-                FORMAT([end], 'dd/MM/yyyy') as [end],
-                completion,
-                dependencies,
-                assignee,
-                [time]
-            FROM controlhorario
-            ORDER BY id DESC
+                c.id,
+                p.nombre as phase,
+                t.nombre as task,
+                c.milestone,
+                FORMAT(c.[start], 'dd/MM/yyyy') as [start],
+                FORMAT(c.[end], 'dd/MM/yyyy') as [end],
+                c.completion,
+                c.dependencies,
+                per.nombre as assignee,
+                c.[time],
+                c.phase_id,
+                c.task_id,
+                c.assignee_id
+            FROM controlhorario c
+            LEFT JOIN proyectos p ON c.phase_id = p.id
+            LEFT JOIN tareas t ON c.task_id = t.id
+            LEFT JOIN personas per ON c.assignee_id = per.id
+            ORDER BY c.id DESC
         `);
         
         // Convertir a formato JSON compatible
         const registros = result.recordset.map(row => ({
             id: row.id,
-            phase: row.phase,
-            task: row.task,
+            phase: row.phase || null,
+            task: row.task || null,
             milestone: row.milestone,
             start: row.start || null,
             end: row.end || null,
             completion: row.completion || 0,
             dependencies: row.dependencies,
-            assignee: row.assignee,
-            time: row.time || null
+            assignee: row.assignee || null,
+            time: row.time || null,
+            phase_id: row.phase_id || null,
+            task_id: row.task_id || null,
+            assignee_id: row.assignee_id || null
         }));
         
         res.json(registros);
@@ -525,7 +624,7 @@ app.get('/api/registros', authenticateToken, async (req, res) => {
 // POST /api/registros - Insertar nuevo registro (admin y gestor)
 app.post('/api/registros', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
-        const { phase, task, milestone, start, end, completion, dependencies, assignee, time } = req.body;
+        const { phase, phase_id, task, task_id, milestone, start, end, completion, dependencies, assignee, assignee_id, time } = req.body;
         
         // Convertir fechas de formato DD/MM/YYYY a DATE
         let startDate = null;
@@ -542,20 +641,53 @@ app.post('/api/registros', authenticateToken, requireRole('admin', 'gestor'), as
         }
         
         const pool = await getPool();
+        
+        // Obtener IDs si se enviaron nombres (compatibilidad hacia atrás)
+        let finalPhaseId = phase_id;
+        let finalTaskId = task_id;
+        let finalAssigneeId = assignee_id;
+        
+        if (phase && !phase_id) {
+            const phaseResult = await pool.request()
+                .input('nombre', sql.NVarChar(255), phase)
+                .query('SELECT id FROM proyectos WHERE nombre = @nombre');
+            if (phaseResult.recordset.length > 0) {
+                finalPhaseId = phaseResult.recordset[0].id;
+            }
+        }
+        
+        if (task && !task_id) {
+            const taskResult = await pool.request()
+                .input('nombre', sql.NVarChar(255), task)
+                .query('SELECT id FROM tareas WHERE nombre = @nombre');
+            if (taskResult.recordset.length > 0) {
+                finalTaskId = taskResult.recordset[0].id;
+            }
+        }
+        
+        if (assignee && !assignee_id) {
+            const assigneeResult = await pool.request()
+                .input('nombre', sql.NVarChar(255), assignee)
+                .query('SELECT id FROM personas WHERE nombre = @nombre');
+            if (assigneeResult.recordset.length > 0) {
+                finalAssigneeId = assigneeResult.recordset[0].id;
+            }
+        }
+        
         const result = await pool.request()
-            .input('phase', sql.NVarChar(255), phase)
-            .input('task', sql.NVarChar(255), task)
+            .input('phase_id', sql.Int, finalPhaseId)
+            .input('task_id', sql.Int, finalTaskId)
             .input('milestone', sql.NVarChar(255), milestone)
             .input('start', sql.Date, startDate)
             .input('end', sql.Date, endDate)
             .input('completion', sql.Int, completion || 0)
             .input('dependencies', sql.NVarChar(255), dependencies)
-            .input('assignee', sql.NVarChar(255), assignee)
+            .input('assignee_id', sql.Int, finalAssigneeId)
             .input('time', sql.Int, time)
             .query(`
-                INSERT INTO controlhorario (phase, task, milestone, [start], [end], completion, dependencies, assignee, [time])
+                INSERT INTO controlhorario (phase_id, task_id, milestone, [start], [end], completion, dependencies, assignee_id, [time])
                 OUTPUT INSERTED.id
-                VALUES (@phase, @task, @milestone, @start, @end, @completion, @dependencies, @assignee, @time)
+                VALUES (@phase_id, @task_id, @milestone, @start, @end, @completion, @dependencies, @assignee_id, @time)
             `);
         
         const newId = result.recordset[0].id;
@@ -570,7 +702,7 @@ app.post('/api/registros', authenticateToken, requireRole('admin', 'gestor'), as
 app.put('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { phase, task, milestone, start, end, completion, dependencies, assignee, time } = req.body;
+        const { phase, phase_id, task, task_id, milestone, start, end, completion, dependencies, assignee, assignee_id, time } = req.body;
         
         // Convertir fechas de formato DD/MM/YYYY a DATE
         let startDate = null;
@@ -587,31 +719,108 @@ app.put('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor'),
         }
         
         const pool = await getPool();
-        const result = await pool.request()
-            .input('id', sql.Int, id)
-            .input('phase', sql.NVarChar(255), phase)
-            .input('task', sql.NVarChar(255), task)
-            .input('milestone', sql.NVarChar(255), milestone)
-            .input('start', sql.Date, startDate)
-            .input('end', sql.Date, endDate)
-            .input('completion', sql.Int, completion || 0)
-            .input('dependencies', sql.NVarChar(255), dependencies)
-            .input('assignee', sql.NVarChar(255), assignee)
-            .input('time', sql.Int, time)
-            .query(`
-                UPDATE controlhorario
-                SET phase = @phase,
-                    task = @task,
-                    milestone = @milestone,
-                    [start] = @start,
-                    [end] = @end,
-                    completion = @completion,
-                    dependencies = @dependencies,
-                    assignee = @assignee,
-                    [time] = @time,
-                    fecha_actualizacion = GETDATE()
-                WHERE id = @id
-            `);
+        
+        // Obtener IDs si se enviaron nombres (compatibilidad hacia atrás)
+        let finalPhaseId = phase_id;
+        let finalTaskId = task_id;
+        let finalAssigneeId = assignee_id;
+        
+        if (phase !== undefined && !phase_id) {
+            if (phase) {
+                const phaseResult = await pool.request()
+                    .input('nombre', sql.NVarChar(255), phase)
+                    .query('SELECT id FROM proyectos WHERE nombre = @nombre');
+                if (phaseResult.recordset.length > 0) {
+                    finalPhaseId = phaseResult.recordset[0].id;
+                }
+            } else {
+                finalPhaseId = null;
+            }
+        }
+        
+        if (task !== undefined && !task_id) {
+            if (task) {
+                const taskResult = await pool.request()
+                    .input('nombre', sql.NVarChar(255), task)
+                    .query('SELECT id FROM tareas WHERE nombre = @nombre');
+                if (taskResult.recordset.length > 0) {
+                    finalTaskId = taskResult.recordset[0].id;
+                }
+            } else {
+                finalTaskId = null;
+            }
+        }
+        
+        if (assignee !== undefined && !assignee_id) {
+            if (assignee) {
+                const assigneeResult = await pool.request()
+                    .input('nombre', sql.NVarChar(255), assignee)
+                    .query('SELECT id FROM personas WHERE nombre = @nombre');
+                if (assigneeResult.recordset.length > 0) {
+                    finalAssigneeId = assigneeResult.recordset[0].id;
+                }
+            } else {
+                finalAssigneeId = null;
+            }
+        }
+        
+        // Construir query dinámico
+        let updateFields = [];
+        const request = pool.request().input('id', sql.Int, id);
+        
+        if (finalPhaseId !== undefined) {
+            updateFields.push('phase_id = @phase_id');
+            request.input('phase_id', sql.Int, finalPhaseId);
+        }
+        
+        if (finalTaskId !== undefined) {
+            updateFields.push('task_id = @task_id');
+            request.input('task_id', sql.Int, finalTaskId);
+        }
+        
+        if (milestone !== undefined) {
+            updateFields.push('milestone = @milestone');
+            request.input('milestone', sql.NVarChar(255), milestone);
+        }
+        
+        if (startDate !== undefined) {
+            updateFields.push('[start] = @start');
+            request.input('start', sql.Date, startDate);
+        }
+        
+        if (endDate !== undefined) {
+            updateFields.push('[end] = @end');
+            request.input('end', sql.Date, endDate);
+        }
+        
+        if (completion !== undefined) {
+            updateFields.push('completion = @completion');
+            request.input('completion', sql.Int, completion || 0);
+        }
+        
+        if (dependencies !== undefined) {
+            updateFields.push('dependencies = @dependencies');
+            request.input('dependencies', sql.NVarChar(255), dependencies);
+        }
+        
+        if (finalAssigneeId !== undefined) {
+            updateFields.push('assignee_id = @assignee_id');
+            request.input('assignee_id', sql.Int, finalAssigneeId);
+        }
+        
+        if (time !== undefined) {
+            updateFields.push('[time] = @time');
+            request.input('time', sql.Int, time);
+        }
+        
+        updateFields.push('fecha_actualizacion = GETDATE()');
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: 'No hay campos para actualizar' });
+        }
+        
+        const query = `UPDATE controlhorario SET ${updateFields.join(', ')} WHERE id = @id`;
+        const result = await request.query(query);
         
         if (result.rowsAffected[0] === 0) {
             return res.status(404).json({ error: 'Registro no encontrado' });
