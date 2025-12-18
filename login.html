@@ -142,6 +142,10 @@
         .loading.show {
             display: block;
         }
+        
+        .loading.hidden {
+            display: none !important;
+        }
 
         @media (max-width: 480px) {
             .login-container {
@@ -189,7 +193,7 @@
             </button>
         </form>
 
-        <div class="loading" id="loading">
+        <div class="loading hidden" id="loading">
             Iniciando sesión...
         </div>
     </div>
@@ -210,13 +214,34 @@
         // Verificar si ya está autenticado
         const token = localStorage.getItem('authToken');
         if (token) {
+            // Mostrar loading mientras verifica
+            loading.classList.remove('hidden');
+            loading.classList.add('show');
+            loginBtn.disabled = true;
+            
+            // Crear un timeout para evitar que se quede colgado
+            const timeoutId = setTimeout(() => {
+                console.warn('Timeout verificando token, limpiando localStorage');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userData');
+                loading.classList.remove('show');
+                loading.classList.add('hidden');
+                loginBtn.disabled = false;
+            }, 5000); // 5 segundos de timeout
+            
             // Verificar si el token es válido
             fetch(`${API_BASE_URL}/api/auth/verify`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
-                }
+                },
+                signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
             })
             .then(res => {
+                clearTimeout(timeoutId);
+                loading.classList.remove('show');
+                loading.classList.add('hidden');
+                loginBtn.disabled = false;
+                
                 if (res.ok) {
                     // Token válido, redirigir a la aplicación
                     window.location.href = 'informe_completo.html';
@@ -226,10 +251,20 @@
                     localStorage.removeItem('userData');
                 }
             })
-            .catch(() => {
+            .catch(err => {
+                clearTimeout(timeoutId);
+                console.warn('Error verificando token:', err);
+                // Si hay error (servidor no responde, CORS, etc.), limpiar token
                 localStorage.removeItem('authToken');
                 localStorage.removeItem('userData');
+                loading.classList.remove('show');
+                loading.classList.add('hidden');
+                loginBtn.disabled = false;
             });
+        } else {
+            // No hay token, asegurar que el loading esté oculto
+            loading.classList.add('hidden');
+            loading.classList.remove('show');
         }
 
         loginForm.addEventListener('submit', async (e) => {
@@ -245,6 +280,7 @@
 
             // Mostrar loading
             loginBtn.disabled = true;
+            loading.classList.remove('hidden');
             loading.classList.add('show');
             errorMessage.classList.remove('show');
 
@@ -296,6 +332,7 @@
             } finally {
                 loginBtn.disabled = false;
                 loading.classList.remove('show');
+                loading.classList.add('hidden');
             }
         });
 

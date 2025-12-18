@@ -15,7 +15,9 @@ const PORT = process.env.PORT || 3000;
 const corsOptions = {
     origin: function (origin, callback) {
         // Permitir sin origen (aplicaciones móviles, Postman, etc.)
-        if (!origin) return callback(null, true);
+        if (!origin) {
+            return callback(null, true);
+        }
         
         // Lista de orígenes permitidos explícitos
         const allowedOrigins = [
@@ -29,18 +31,32 @@ const corsOptions = {
         
         // Verificar si el origen está en la lista explícita
         if (allowedOrigins.includes(origin)) {
+            console.log(`✅ CORS permitido (lista explícita): ${origin}`);
             return callback(null, true);
         }
         
         // Permitir cualquier dominio que termine en .web.core.windows.net (Blob Storage de Azure)
         if (origin.endsWith('.web.core.windows.net')) {
+            console.log(`✅ CORS permitido (Blob Storage): ${origin}`);
             return callback(null, true);
         }
         
-        // En desarrollo, permitir todos (cambiar en producción)
+        // En desarrollo, permitir todos
         if (process.env.NODE_ENV !== 'production') {
+            console.log(`✅ CORS permitido (desarrollo): ${origin}`);
             return callback(null, true);
         }
+        
+        // En producción, si hay ALLOWED_ORIGIN configurado, usarlo
+        if (process.env.ALLOWED_ORIGIN && origin === process.env.ALLOWED_ORIGIN) {
+            console.log(`✅ CORS permitido (variable de entorno): ${origin}`);
+            return callback(null, true);
+        }
+        
+        // Log para debug
+        console.log(`❌ CORS rechazado: ${origin}`);
+        console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
+        console.log(`   ALLOWED_ORIGIN: ${process.env.ALLOWED_ORIGIN}`);
         
         // En producción, rechazar si no está permitido
         callback(new Error('No permitido por CORS'));
@@ -277,6 +293,17 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
             return res.status(400).json({ error: 'Usuario, contraseña y rol requeridos' });
         }
         
+        // Validar formato de email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(usuario)) {
+            return res.status(400).json({ error: 'El usuario debe ser una dirección de correo electrónico válida' });
+        }
+        
+        // Validar dominio @es.logicalis.com
+        if (!usuario.endsWith('@es.logicalis.com')) {
+            return res.status(400).json({ error: 'El usuario debe ser del dominio @es.logicalis.com' });
+        }
+        
         if (!['admin', 'gestor', 'visor'].includes(rol)) {
             return res.status(400).json({ error: 'Rol inválido. Debe ser: admin, gestor o visor' });
         }
@@ -341,6 +368,17 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
         const request = pool.request().input('id', sql.Int, id);
         
         if (usuario !== undefined) {
+            // Validar formato de email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(usuario)) {
+                return res.status(400).json({ error: 'El usuario debe ser una dirección de correo electrónico válida' });
+            }
+            
+            // Validar dominio @es.logicalis.com
+            if (!usuario.endsWith('@es.logicalis.com')) {
+                return res.status(400).json({ error: 'El usuario debe ser del dominio @es.logicalis.com' });
+            }
+            
             updateFields.push('usuario = @usuario');
             request.input('usuario', sql.NVarChar(100), usuario);
         }
@@ -402,6 +440,43 @@ app.delete('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (
         console.error('Error al eliminar usuario:', err);
         res.status(500).json({ error: 'Error al eliminar usuario', details: err.message });
     }
+});
+
+// ========== RUTAS DE HEALTH CHECK ==========
+
+// GET /health - Health check (sin autenticación)
+app.get('/health', async (req, res) => {
+    try {
+        // Verificar conexión a la base de datos
+        const pool = await getPool();
+        await pool.request().query('SELECT 1 as test');
+        
+        res.json({ 
+            status: 'ok', 
+            timestamp: new Date().toISOString(),
+            database: 'connected'
+        });
+    } catch (err) {
+        res.status(503).json({ 
+            status: 'error', 
+            timestamp: new Date().toISOString(),
+            database: 'disconnected',
+            error: err.message 
+        });
+    }
+});
+
+// GET / - Root endpoint
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'API Backend - Control de Horas',
+        version: '1.0.0',
+        endpoints: {
+            health: '/health',
+            login: '/api/auth/login',
+            registros: '/api/registros'
+        }
+    });
 });
 
 // ========== RUTAS API (Protegidas) ==========

@@ -4,7 +4,7 @@
 const bcrypt = require('bcrypt');
 
 async function createAdminUser() {
-    const password = 'admin123'; // Contraseña inicial
+    const password = 'San_Lorenzo100@'; // Contraseña inicial
     const hash = await bcrypt.hash(password, 10);
     
     console.log('===========================================');
@@ -24,7 +24,7 @@ GO
 -- Contraseña: admin123
 INSERT INTO usuarios (usuario, password_hash, rol, activo)
 VALUES (
-    'admin',
+    'federico.escribano@es.logicalis.com',
     '${hash}',
     'admin',
     1

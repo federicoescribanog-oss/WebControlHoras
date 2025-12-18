@@ -369,8 +369,19 @@
                 <input type="hidden" id="userId">
                 
                 <div class="form-group">
-                    <label for="usuario">Usuario *</label>
-                    <input type="text" id="usuario" name="usuario" required>
+                    <label for="usuario">Usuario (Email) *</label>
+                    <input 
+                        type="email" 
+                        id="usuario" 
+                        name="usuario" 
+                        placeholder="usuario@es.logicalis.com"
+                        pattern="[a-zA-Z0-9._%+-]+@es\.logicalis\.com"
+                        title="Debe ser un email del dominio @es.logicalis.com"
+                        required
+                    >
+                    <small style="color: var(--text-secondary); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Debe ser un email del dominio @es.logicalis.com
+                    </small>
                 </div>
 
                 <div class="form-group">
@@ -547,6 +558,19 @@
 
             if (!usuario || !rol) {
                 showError('Por favor, completa todos los campos obligatorios');
+                return;
+            }
+
+            // Validar formato de email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(usuario)) {
+                showError('El usuario debe ser una dirección de correo electrónico válida');
+                return;
+            }
+
+            // Validar dominio @es.logicalis.com
+            if (!usuario.endsWith('@es.logicalis.com')) {
+                showError('El usuario debe ser del dominio @es.logicalis.com');
                 return;
             }
 
