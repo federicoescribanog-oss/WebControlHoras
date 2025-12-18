@@ -165,14 +165,29 @@ app.post('/api/auth/login', async (req, res) => {
         }
         
         const pool = await getPool();
-        const result = await pool.request()
-            .input('usuario', sql.NVarChar(100), usuario)
-            .query(`
-                SELECT u.id, u.usuario, u.password_hash, u.rol, r.nombre as rol_nombre, u.activo
-                FROM usuarios u
-                INNER JOIN roles r ON u.rol = r.id
-                WHERE u.usuario = @usuario AND u.activo = 1
-            `);
+        
+        // Intentar primero con JOIN (si rol es INT)
+        let result;
+        try {
+            result = await pool.request()
+                .input('usuario', sql.NVarChar(100), usuario)
+                .query(`
+                    SELECT u.id, u.usuario, u.password_hash, u.rol, r.nombre as rol_nombre, u.activo
+                    FROM usuarios u
+                    INNER JOIN roles r ON u.rol = r.id
+                    WHERE u.usuario = @usuario AND u.activo = 1
+                `);
+        } catch (joinError) {
+            // Si falla el JOIN, intentar sin JOIN (rol es string)
+            console.warn('JOIN falló, intentando sin JOIN:', joinError.message);
+            result = await pool.request()
+                .input('usuario', sql.NVarChar(100), usuario)
+                .query(`
+                    SELECT id, usuario, password_hash, rol as rol_nombre, activo
+                    FROM usuarios
+                    WHERE usuario = @usuario AND activo = 1
+                `);
+        }
         
         if (result.recordset.length === 0) {
             return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
