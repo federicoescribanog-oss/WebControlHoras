@@ -1061,6 +1061,108 @@ app.post('/api/tareas', authenticateToken, requireRole('admin', 'gestor'), async
     }
 });
 
+// DELETE /api/personas/:id - Eliminar persona (admin y gestor)
+app.delete('/api/personas/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        // Verificar si hay registros que usan esta persona
+        const checkUsage = await pool.request()
+            .input('persona_id', sql.Int, id)
+            .query('SELECT COUNT(*) as count FROM controlhorario WHERE assignee_id = @persona_id');
+        
+        if (checkUsage.recordset[0].count > 0) {
+            return res.status(409).json({ 
+                error: 'No se puede eliminar esta persona porque tiene registros asociados',
+                count: checkUsage.recordset[0].count
+            });
+        }
+        
+        // Marcar como inactivo en lugar de eliminar (soft delete)
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('UPDATE personas SET activo = 0 WHERE id = @id');
+        
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Persona no encontrada' });
+        }
+        
+        res.json({ message: 'Persona eliminada correctamente' });
+    } catch (err) {
+        console.error('Error al eliminar persona:', err);
+        res.status(500).json({ error: 'Error al eliminar persona', details: err.message });
+    }
+});
+
+// DELETE /api/proyectos/:id - Eliminar proyecto (admin y gestor)
+app.delete('/api/proyectos/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        // Verificar si hay registros que usan este proyecto
+        const checkUsage = await pool.request()
+            .input('proyecto_id', sql.Int, id)
+            .query('SELECT COUNT(*) as count FROM controlhorario WHERE phase_id = @proyecto_id');
+        
+        if (checkUsage.recordset[0].count > 0) {
+            return res.status(409).json({ 
+                error: 'No se puede eliminar este proyecto porque tiene registros asociados',
+                count: checkUsage.recordset[0].count
+            });
+        }
+        
+        // Marcar como inactivo en lugar de eliminar (soft delete)
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('UPDATE proyectos SET activo = 0 WHERE id = @id');
+        
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Proyecto no encontrado' });
+        }
+        
+        res.json({ message: 'Proyecto eliminado correctamente' });
+    } catch (err) {
+        console.error('Error al eliminar proyecto:', err);
+        res.status(500).json({ error: 'Error al eliminar proyecto', details: err.message });
+    }
+});
+
+// DELETE /api/tareas/:id - Eliminar tarea (admin y gestor)
+app.delete('/api/tareas/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        // Verificar si hay registros que usan esta tarea
+        const checkUsage = await pool.request()
+            .input('tarea_id', sql.Int, id)
+            .query('SELECT COUNT(*) as count FROM controlhorario WHERE task_id = @tarea_id');
+        
+        if (checkUsage.recordset[0].count > 0) {
+            return res.status(409).json({ 
+                error: 'No se puede eliminar esta tarea porque tiene registros asociados',
+                count: checkUsage.recordset[0].count
+            });
+        }
+        
+        // Marcar como inactivo en lugar de eliminar (soft delete)
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('UPDATE tareas SET activo = 0 WHERE id = @id');
+        
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Tarea no encontrada' });
+        }
+        
+        res.json({ message: 'Tarea eliminada correctamente' });
+    } catch (err) {
+        console.error('Error al eliminar tarea:', err);
+        res.status(500).json({ error: 'Error al eliminar tarea', details: err.message });
+    }
+});
+
 // Servir el HTML principal (solo si no está en Blob Storage)
 // Si el HTML está en Blob Storage, esta ruta no se usará
 // app.get('/', (req, res) => {

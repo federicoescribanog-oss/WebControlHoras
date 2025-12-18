@@ -1127,22 +1127,84 @@ async function addMaster(type) {
     }
 }
 
-function deleteMaster(type, value) {
+async function deleteMaster(type, value) {
     if (!confirm(`¿Eliminar "${value}"?`)) return;
     
-    if (type === 'person') {
-        masterPersons = masterPersons.filter(p => p !== value);
-        jsonData = jsonData.filter(d => d.assignee !== value);
-        selectedPersons.delete(value);
-    } else if (type === 'project') {
-        masterProjects = masterProjects.filter(p => p !== value);
-        jsonData = jsonData.filter(d => d.phase !== value);
-    } else if (type === 'task') {
-        masterTasks = masterTasks.filter(t => t !== value);
-        jsonData = jsonData.filter(d => d.task !== value);
+    // Verificar permisos (solo admin y gestor pueden eliminar)
+    const userRole = getUserRole();
+    if (userRole !== 'admin' && userRole !== 'gestor') {
+        alert('No tienes permisos para eliminar valores');
+        return;
     }
     
-    refreshAll();
+    // Buscar el ID del elemento a eliminar
+    let itemId = null;
+    let apiUrl = null;
+    
+    if (type === 'person') {
+        const item = masterPersons.find(p => p.nombre === value);
+        if (!item) {
+            alert('No se encontró la persona');
+            return;
+        }
+        itemId = item.id;
+        apiUrl = `${API_PERSONAS_URL}/${itemId}`;
+    } else if (type === 'project') {
+        const item = masterProjects.find(p => p.nombre === value);
+        if (!item) {
+            alert('No se encontró el proyecto');
+            return;
+        }
+        itemId = item.id;
+        apiUrl = `${API_PROYECTOS_URL}/${itemId}`;
+    } else if (type === 'task') {
+        const item = masterTasks.find(t => t.nombre === value);
+        if (!item) {
+            alert('No se encontró la tarea');
+            return;
+        }
+        itemId = item.id;
+        apiUrl = `${API_TAREAS_URL}/${itemId}`;
+    }
+    
+    if (!apiUrl || !itemId) {
+        alert('Error: No se pudo encontrar el elemento');
+        return;
+    }
+    
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            return;
+        }
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al eliminar');
+        }
+        
+        // Eliminar del array local
+        if (type === 'person') {
+            masterPersons = masterPersons.filter(p => p.nombre !== value);
+            selectedPersons.delete(value);
+        } else if (type === 'project') {
+            masterProjects = masterProjects.filter(p => p.nombre !== value);
+        } else if (type === 'task') {
+            masterTasks = masterTasks.filter(t => t.nombre !== value);
+        }
+        
+        // Recargar maestros desde la BD para asegurar sincronización
+        await loadMasters();
+        refreshAll();
+    } catch (err) {
+        alert(`❌ Error al eliminar: ${err.message}`);
+        console.error('Error:', err);
+    }
 }
 
 function populateSelects() {
@@ -1420,13 +1482,15 @@ function downloadJson() {
 function renderPersonSelector() {
     const container = document.getElementById('personSelector');
     
+    // masterPersons ahora es array de objetos {id, nombre}
     container.innerHTML = masterPersons.length > 0 
         ? masterPersons.map(p => {
-            const checked = selectedPersons.has(p) ? 'checked' : '';
-            const selectedClass = selectedPersons.has(p) ? 'selected' : '';
-            return `<div class="person-item ${selectedClass}" data-person="${p}">
+            const personName = p.nombre || p; // Compatibilidad: puede ser objeto o string
+            const checked = selectedPersons.has(personName) ? 'checked' : '';
+            const selectedClass = selectedPersons.has(personName) ? 'selected' : '';
+            return `<div class="person-item ${selectedClass}" data-person="${escapeHtml(personName)}">
                 <input type="checkbox" ${checked}>
-                <span class="person-name">${p}</span>
+                <span class="person-name">${personName}</span>
             </div>`;
         }).join('')
         : '<div style="padding:1rem;color:var(--text-secondary);text-align:center;">Sin personas</div>';
