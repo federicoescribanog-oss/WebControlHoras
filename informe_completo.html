@@ -884,12 +884,26 @@ async function loadMasters() {
         });
         if (personasResponse.ok) {
             const personas = await personasResponse.json();
-            masterPersons = personas.map(p => ({ id: p.id, nombre: p.nombre, activo: p.activo }));
+            // Normalizar activo: si es undefined/null, asumir activo (1), si es boolean convertir a 0/1
+            masterPersons = personas.map(p => ({ 
+                id: p.id, 
+                nombre: p.nombre, 
+                activo: p.activo === undefined || p.activo === null ? 1 : (p.activo === true || p.activo === 1 ? 1 : 0)
+            }));
             // Ordenar: activos primero, luego inactivos, ambos por nombre
             masterPersons.sort((a, b) => {
                 if (a.activo !== b.activo) return b.activo - a.activo; // Activos primero
                 return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
             });
+            
+            // Debug: verificar que se cargan inactivos para admin
+            const userRole = getUserRole();
+            if (userRole === 'admin') {
+                const inactivos = masterPersons.filter(p => p.activo === 0);
+                if (inactivos.length > 0) {
+                    console.log('Admin: Se cargaron', inactivos.length, 'personas inactivas:', inactivos.map(p => p.nombre));
+                }
+            }
         }
         
         // Cargar proyectos
@@ -898,7 +912,11 @@ async function loadMasters() {
         });
         if (proyectosResponse.ok) {
             const proyectos = await proyectosResponse.json();
-            masterProjects = proyectos.map(p => ({ id: p.id, nombre: p.nombre, activo: p.activo }));
+            masterProjects = proyectos.map(p => ({ 
+                id: p.id, 
+                nombre: p.nombre, 
+                activo: p.activo === undefined || p.activo === null ? 1 : (p.activo === true || p.activo === 1 ? 1 : 0)
+            }));
             masterProjects.sort((a, b) => {
                 if (a.activo !== b.activo) return b.activo - a.activo;
                 return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
@@ -911,7 +929,11 @@ async function loadMasters() {
         });
         if (tareasResponse.ok) {
             const tareas = await tareasResponse.json();
-            masterTasks = tareas.map(t => ({ id: t.id, nombre: t.nombre, activo: t.activo }));
+            masterTasks = tareas.map(t => ({ 
+                id: t.id, 
+                nombre: t.nombre, 
+                activo: t.activo === undefined || t.activo === null ? 1 : (t.activo === true || t.activo === 1 ? 1 : 0)
+            }));
             masterTasks.sort((a, b) => {
                 if (a.activo !== b.activo) return b.activo - a.activo;
                 return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
@@ -1010,40 +1032,57 @@ function renderMasterLists() {
     const isAdmin = userRole === 'admin';
     const canDelete = userRole === 'admin' || userRole === 'gestor';
     
-    // Filtrar: no admin solo ve activos, admin ve todos
-    const visiblePersons = isAdmin ? masterPersons : masterPersons.filter(p => p.activo === 1);
-    const visibleProjects = isAdmin ? masterProjects : masterProjects.filter(p => p.activo === 1);
-    const visibleTasks = isAdmin ? masterTasks : masterTasks.filter(t => t.activo === 1);
+    // Normalizar activo: SQL Server BIT puede venir como boolean o número
+    // Convertir a 0 o 1 para comparaciones consistentes
+    const normalizeActivo = (activo) => {
+        if (activo === undefined || activo === null) return 1; // Por defecto activo
+        if (activo === true || activo === 1 || activo === '1') return 1;
+        if (activo === false || activo === 0 || activo === '0') return 0;
+        return 1; // Por defecto activo si no se reconoce
+    };
+    
+    const visiblePersons = isAdmin 
+        ? masterPersons.map(p => ({ ...p, activo: normalizeActivo(p.activo) }))
+        : masterPersons.filter(p => normalizeActivo(p.activo) === 1).map(p => ({ ...p, activo: 1 }));
+    const visibleProjects = isAdmin 
+        ? masterProjects.map(p => ({ ...p, activo: normalizeActivo(p.activo) }))
+        : masterProjects.filter(p => normalizeActivo(p.activo) === 1).map(p => ({ ...p, activo: 1 }));
+    const visibleTasks = isAdmin 
+        ? masterTasks.map(t => ({ ...t, activo: normalizeActivo(t.activo) }))
+        : masterTasks.filter(t => normalizeActivo(t.activo) === 1).map(t => ({ ...t, activo: 1 }));
     
     // Trabajar con objetos {id, nombre, activo}
     document.getElementById('personsList').innerHTML = visiblePersons.length > 0 
         ? visiblePersons.map(p => {
-            const inactiveClass = p.activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
-            const inactiveLabel = p.activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
+            const activo = normalizeActivo(p.activo);
+            const inactiveClass = activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+            const inactiveLabel = activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
             // Botón borrar: solo para activos y si tiene permisos
-            const deleteBtn = (p.activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p.nombre)}')">×</button>` : '';
+            const deleteBtn = (activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p.nombre)}')">×</button>` : '';
             // Botón reactivar: solo para admin en inactivos
-            const activateBtn = (p.activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('person','${escapeHtml(p.nombre)}',${p.id})" title="Reactivar">↻</button>` : '';
+            const activateBtn = (activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('person','${escapeHtml(p.nombre)}',${p.id})" title="Reactivar">↻</button>` : '';
             return `<div class="master-item"${inactiveClass}><span>${p.nombre}${inactiveLabel}</span>${activateBtn}${deleteBtn}</div>`;
         }).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin personas</div>';
     
     document.getElementById('projectsList').innerHTML = visibleProjects.length > 0
         ? visibleProjects.map(p => {
-            const inactiveClass = p.activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
-            const inactiveLabel = p.activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
-            const deleteBtn = (p.activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p.nombre)}')">×</button>` : '';
-            const activateBtn = (p.activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('project','${escapeHtml(p.nombre)}',${p.id})" title="Reactivar">↻</button>` : '';
+            const activo = normalizeActivo(p.activo);
+            const inactiveClass = activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+            const inactiveLabel = activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
+            const deleteBtn = (activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p.nombre)}')">×</button>` : '';
+            const activateBtn = (activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('project','${escapeHtml(p.nombre)}',${p.id})" title="Reactivar">↻</button>` : '';
             return `<div class="master-item"${inactiveClass}><span>${p.nombre}${inactiveLabel}</span>${activateBtn}${deleteBtn}</div>`;
         }).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin proyectos</div>';
     
     document.getElementById('tasksList').innerHTML = visibleTasks.length > 0
         ? visibleTasks.map(t => {
-            const inactiveClass = t.activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
-            const inactiveLabel = t.activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
-            const deleteBtn = (t.activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t.nombre)}')">×</button>` : '';
-            const activateBtn = (t.activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('task','${escapeHtml(t.nombre)}',${t.id})" title="Reactivar">↻</button>` : '';
+            const activo = normalizeActivo(t.activo);
+            const inactiveClass = activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+            const inactiveLabel = activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
+            const deleteBtn = (activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t.nombre)}')">×</button>` : '';
+            const activateBtn = (activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('task','${escapeHtml(t.nombre)}',${t.id})" title="Reactivar">↻</button>` : '';
             return `<div class="master-item"${inactiveClass}><span>${t.nombre}${inactiveLabel}</span>${activateBtn}${deleteBtn}</div>`;
         }).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin tareas</div>';
@@ -1268,9 +1307,38 @@ async function deleteMaster(type, value) {
             throw new Error(error.error || 'Error al eliminar');
         } else {
             // Eliminación exitosa sin registros asociados
-            const result = await response.json();
-            if (result.message) {
-                alert(`✅ ${result.message}`);
+                const result = await response.json();
+                if (result.message) {
+                    alert(`✅ ${result.message}`);
+                }
+        }
+        
+        // Si es admin, NO eliminar del array local, solo actualizar el estado a inactivo
+        // Si NO es admin, eliminar del array local (no lo verá más)
+        const userRole = getUserRole();
+        const isAdmin = userRole === 'admin';
+        
+        if (isAdmin) {
+            // Admin: actualizar el estado a inactivo en el array local
+            if (type === 'person') {
+                const item = masterPersons.find(p => p.nombre === value);
+                if (item) item.activo = 0;
+            } else if (type === 'project') {
+                const item = masterProjects.find(p => p.nombre === value);
+                if (item) item.activo = 0;
+            } else if (type === 'task') {
+                const item = masterTasks.find(t => t.nombre === value);
+                if (item) item.activo = 0;
+            }
+        } else {
+            // No admin: eliminar del array local (no lo verá más)
+            if (type === 'person') {
+                masterPersons = masterPersons.filter(p => p.nombre !== value);
+                selectedPersons.delete(value);
+            } else if (type === 'project') {
+                masterProjects = masterProjects.filter(p => p.nombre !== value);
+            } else if (type === 'task') {
+                masterTasks = masterTasks.filter(t => t.nombre !== value);
             }
         }
         
@@ -1278,7 +1346,7 @@ async function deleteMaster(type, value) {
         await loadMasters();
         // Recargar registros para reflejar los cambios
         await loadFromAPI();
-    refreshAll();
+        refreshAll();
     } catch (err) {
         alert(`❌ Error al eliminar: ${err.message}`);
         console.error('Error:', err);
