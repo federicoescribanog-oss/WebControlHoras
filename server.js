@@ -462,6 +462,55 @@ function generateSecurePassword() {
     return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
+// POST /api/auth/change-password - Cambiar contraseña del usuario actual
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Contraseña actual y nueva contraseña requeridas' });
+        }
+
+        // Validar nueva contraseña
+        const passwordValidation = validatePassword(newPassword);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({ error: passwordValidation.message });
+        }
+
+        const pool = await getPool();
+        const request = pool.request();
+
+        // Obtener usuario actual con su contraseña
+        const userResult = await request
+            .input('id', sql.Int, req.user.id)
+            .query('SELECT password_hash FROM usuarios WHERE id = @id AND activo = 1');
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        // Verificar contraseña actual
+        const passwordMatch = await bcrypt.compare(currentPassword, userResult.recordset[0].password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+        }
+
+        // Hash de nueva contraseña
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+        // Actualizar contraseña
+        await request
+            .input('id', sql.Int, req.user.id)
+            .input('password_hash', sql.NVarChar(255), newPasswordHash)
+            .query('UPDATE usuarios SET password_hash = @password_hash WHERE id = @id');
+
+        res.json({ message: 'Contraseña cambiada correctamente' });
+    } catch (err) {
+        console.error('Error al cambiar contraseña:', err);
+        res.status(500).json({ error: 'Error al cambiar contraseña', details: err.message });
+    }
+});
+
 // GET /api/auth/verify - Verificar token
 app.get('/api/auth/verify', authenticateToken, (req, res) => {
     res.json({
