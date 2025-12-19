@@ -499,12 +499,11 @@ app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Error de conexión a la base de datos', details: 'Pool no inicializado' });
         }
 
-        const request = pool.request();
-
         // Obtener usuario actual con su contraseña
         let userResult;
         try {
-            userResult = await request
+            const selectRequest = pool.request();
+            userResult = await selectRequest
                 .input('id', sql.Int, req.user.id)
                 .query('SELECT password_hash FROM usuarios WHERE id = @id AND activo = 1');
         } catch (err) {
@@ -546,9 +545,10 @@ app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Error al procesar nueva contraseña', details: err.message });
         }
 
-        // Actualizar contraseña
+        // Actualizar contraseña (usar un nuevo request para evitar conflictos de parámetros)
         try {
-            await request
+            const updateRequest = pool.request();
+            await updateRequest
                 .input('id', sql.Int, req.user.id)
                 .input('password_hash', sql.NVarChar(255), newPasswordHash)
                 .query('UPDATE usuarios SET password_hash = @password_hash WHERE id = @id');
