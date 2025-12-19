@@ -228,7 +228,7 @@
             color: var(--success);
         }
         .password-requirements li.invalid {
-            color: var(--error);
+            color: var(--danger);
         }
         
         .entries-table-wrapper { max-height: 400px; overflow-y: auto; }
@@ -963,8 +963,20 @@ function openChangePasswordModal() {
     // Asegurar que los event listeners estén configurados
     setupPasswordToggles();
     
-    // Resetear requisitos de contraseña al abrir el modal
-    updateChangePasswordRequirements();
+    // Agregar event listener para validar contraseña en tiempo real (como en gestion_usuarios.html)
+    // Esperar un momento para asegurar que el DOM esté listo
+    setTimeout(() => {
+        const newPasswordInput = document.getElementById('newPassword');
+        if (newPasswordInput) {
+            // Agregar listener directamente - se ejecutará cada vez que se escriba
+            newPasswordInput.addEventListener('input', function() {
+                updateChangePasswordRequirements();
+            });
+        }
+        
+        // Resetear requisitos de contraseña al abrir el modal (todo en rojo)
+        updateChangePasswordRequirements();
+    }, 10);
 }
 
 function closeChangePasswordModal() {
@@ -3054,23 +3066,43 @@ function updateChangePasswordRequirements() {
 
     if (reqLength) {
         reqLength.className = requirements.length ? 'valid' : 'invalid';
+        reqLength.style.color = requirements.length ? 'var(--success)' : 'var(--danger)';
     }
     if (reqUppercase) {
         reqUppercase.className = requirements.uppercase ? 'valid' : 'invalid';
+        reqUppercase.style.color = requirements.uppercase ? 'var(--success)' : 'var(--danger)';
     }
     if (reqNumber) {
         reqNumber.className = requirements.number ? 'valid' : 'invalid';
+        reqNumber.style.color = requirements.number ? 'var(--success)' : 'var(--danger)';
     }
     if (reqSpecial) {
         reqSpecial.className = requirements.special ? 'valid' : 'invalid';
+        reqSpecial.style.color = requirements.special ? 'var(--success)' : 'var(--danger)';
     }
 }
 
-// Inicializar toggles cuando se carga la página
+// Inicializar toggles y listeners cuando se carga la página
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupPasswordToggles);
+    document.addEventListener('DOMContentLoaded', () => {
+        setupPasswordToggles();
+        // Agregar listener para validar contraseña en tiempo real (como en gestion_usuarios.html)
+        const newPasswordInput = document.getElementById('newPassword');
+        if (newPasswordInput) {
+            newPasswordInput.addEventListener('input', function() {
+                updateChangePasswordRequirements();
+            });
+        }
+    });
 } else {
     setupPasswordToggles();
+    // Agregar listener para validar contraseña en tiempo real (como en gestion_usuarios.html)
+    const newPasswordInput = document.getElementById('newPassword');
+    if (newPasswordInput) {
+        newPasswordInput.addEventListener('input', function() {
+            updateChangePasswordRequirements();
+        });
+    }
 }
 </script>
 
@@ -3098,7 +3130,7 @@ if (document.readyState === 'loading') {
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-size: 0.9rem; font-weight: 500;">Nueva Contraseña *</label>
                 <div class="password-wrapper">
-                    <input type="password" id="newPassword" required oninput="updateChangePasswordRequirements()" style="width: 100%; padding: 0.75rem; padding-right: 3rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 1rem;">
+                    <input type="password" id="newPassword" required style="width: 100%; padding: 0.75rem; padding-right: 3rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 1rem;">
                     <button type="button" class="password-toggle" id="toggleNewPassword" aria-label="Mostrar contraseña">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -3109,10 +3141,10 @@ if (document.readyState === 'loading') {
                 <div class="password-requirements" id="changePasswordRequirements">
                     <strong>Requisitos de contraseña:</strong>
                     <ul>
-                        <li id="req-length" class="invalid">Mínimo 10 caracteres</li>
-                        <li id="req-uppercase" class="invalid">Al menos una mayúscula</li>
-                        <li id="req-number" class="invalid">Al menos un número</li>
-                        <li id="req-special" class="invalid">Al menos un carácter especial (!@#$%^&*)</li>
+                        <li id="req-length" class="invalid" style="color: var(--danger);">Mínimo 10 caracteres</li>
+                        <li id="req-uppercase" class="invalid" style="color: var(--danger);">Al menos una mayúscula</li>
+                        <li id="req-number" class="invalid" style="color: var(--danger);">Al menos un número</li>
+                        <li id="req-special" class="invalid" style="color: var(--danger);">Al menos un carácter especial (!@#$%^&*)</li>
                     </ul>
                 </div>
             </div>
