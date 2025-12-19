@@ -2056,7 +2056,8 @@ function getFilteredData() {
 
 function updateStats() {
     const filtered = getFilteredData();
-    const uniquePersons = [...new Set(filtered.map(d => d.assignee))];
+    // El KPI de personas debe mostrar las personas seleccionadas, no las únicas en los datos filtrados
+    const personsCount = selectedPersons.size > 0 ? selectedPersons.size : masterPersons.length;
     const uniqueProjects = [...new Set(filtered.filter(d => d.task !== 'Vacaciones').map(d => d.phase))];
     const vacCount = filtered.filter(d => d.task === 'Vacaciones').length;
     const projectCount = filtered.filter(d => d.task !== 'Vacaciones').length;
@@ -2071,7 +2072,7 @@ function updateStats() {
         });
     }
 
-    document.getElementById('statPersons').textContent = uniquePersons.length;
+    document.getElementById('statPersons').textContent = personsCount;
     document.getElementById('statProjects').textContent = uniqueProjects.length;
     document.getElementById('statVacations').textContent = vacCount;
     document.getElementById('statAssignments').textContent = projectCount;
@@ -2108,7 +2109,9 @@ function renderTable() {
         thead.innerHTML = '';
         
         const workingDays = getWorkingDays(dateRange.start, dateRange.end);
-        const personsToShow = [...selectedPersons].filter(p => masterPersons.includes(p)).sort();
+        // Filtrar personas seleccionadas que existan en masterPersons (comparar nombres)
+        const masterPersonNames = masterPersons.map(p => p.nombre || p);
+        const personsToShow = [...selectedPersons].filter(p => masterPersonNames.includes(p)).sort();
         
         if (personsToShow.length === 0) {
             tbody.innerHTML = '<div class="no-data">Selecciona personas para ver la ocupación</div>';
@@ -2275,6 +2278,12 @@ function renderTimeline() {
         return;
     }
     
+    // Si no hay personas seleccionadas, no mostrar nada en el timeline
+    if (selectedPersons.size === 0) {
+        container.innerHTML = '<div class="no-data">Selecciona personas para ver el timeline</div>';
+        return;
+    }
+    
     const { start, end } = getViewRange();
     const days = getWorkingDays(start, end);
     const today = new Date(); today.setHours(0,0,0,0);
@@ -2285,10 +2294,8 @@ function renderTimeline() {
     const filterTask = filterTaskInput?.dataset.value || '';
     const filterType = document.getElementById('filterType')?.value || '';
 
-    // Usar nombres de personas, no objetos
-    let filteredPersons = selectedPersons.size > 0 
-        ? [...selectedPersons].sort() 
-        : masterPersons.map(p => p.nombre || p).sort();
+    // Usar nombres de personas seleccionadas
+    let filteredPersons = [...selectedPersons].sort();
     let filteredData = jsonData.filter(d => {
         if (!d.assignee) return false;
         if (selectedPersons.size > 0 && !selectedPersons.has(d.assignee)) return false;
