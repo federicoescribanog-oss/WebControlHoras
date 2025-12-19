@@ -64,13 +64,19 @@ const corsOptions = {
         callback(new Error('No permitido por CORS'));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Request-Method', 'Access-Control-Request-Headers'],
-    optionsSuccessStatus: 200 // Algunos navegadores antiguos requieren esto
+    exposedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200, // Algunos navegadores antiguos requieren esto
+    preflightContinue: false // Responder inmediatamente a OPTIONS
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Manejo explícito de peticiones OPTIONS (preflight) para asegurar CORS
+app.options('*', cors(corsOptions));
+
 // No servir archivos estáticos si la API está separada del frontend
 // app.use(express.static('.')); // Comentado porque el HTML está en Blob Storage
 
@@ -1633,18 +1639,29 @@ app.put('/api/tareas/:id/activate', authenticateToken, requireRole('admin'), asy
 // ========== INICIALIZACIÓN Y ARRANQUE DEL SERVIDOR ==========
 // Inicializar secretos antes de iniciar el servidor
 (async () => {
-    await loadSecrets();
-    await loadDatabaseConfig();
+    try {
+        await loadSecrets();
+        await loadDatabaseConfig();
+    } catch (err) {
+        console.error('⚠️ Error al cargar secretos/configuración:', err.message);
+        console.error('⚠️ El servidor iniciará con variables de entorno tradicionales');
+    }
     
-    // Iniciar servidor después de cargar secretos
+    // Iniciar servidor después de cargar secretos (o aunque falle)
     app.listen(PORT, () => {
         console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
         console.log(`📡 API disponible en http://localhost:${PORT}/api/registros`);
+        console.log(`🌐 CORS configurado para: https://webcontrolhoras.z6.web.core.windows.net`);
     });
     
     // Inicializar pool de conexiones después de un breve delay
     setTimeout(async () => {
-        await getPool();
+        try {
+            await getPool();
+        } catch (err) {
+            console.error('⚠️ Error al inicializar pool de conexiones:', err.message);
+            console.error('⚠️ El servidor seguirá funcionando, pero las peticiones a la BD fallarán');
+        }
     }, 1000);
 })();
 
