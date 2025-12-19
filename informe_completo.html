@@ -995,20 +995,49 @@ async function changePassword() {
             })
         });
 
-        if (response.status === 401 || response.status === 403) {
+        // Verificar si la respuesta es JSON
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            throw new Error(`Error del servidor (${response.status}): ${text || 'Sin respuesta'}`);
+        }
+
+        // Si es 401 o 403, puede ser que la contraseña actual sea incorrecta o el token haya expirado
+        if (response.status === 401) {
+            // Si el error es sobre contraseña incorrecta, mostrar el mensaje
+            if (data.error && data.error.includes('Contraseña actual incorrecta')) {
+                errorDiv.textContent = data.error;
+                errorDiv.style.display = 'block';
+                return;
+            }
+            // Si es un error de autenticación del token, entonces sí redirigir
+            logout();
+            return;
+        }
+
+        if (response.status === 403) {
+            // Error de permisos, redirigir
             logout();
             return;
         }
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Error al cambiar contraseña');
+            throw new Error(data.error || 'Error al cambiar contraseña');
         }
 
         alert('Contraseña cambiada correctamente');
         closeChangePasswordModal();
     } catch (err) {
-        errorDiv.textContent = err.message;
+        console.error('Error al cambiar contraseña:', err);
+        // Solo mostrar error, no redirigir a menos que sea un error de red grave
+        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+            errorDiv.textContent = 'Error de conexión. Verifica que el servidor esté funcionando.';
+        } else {
+            errorDiv.textContent = err.message || 'Error al cambiar contraseña';
+        }
         errorDiv.style.display = 'block';
     }
 }
