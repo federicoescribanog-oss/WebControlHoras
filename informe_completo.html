@@ -1019,11 +1019,22 @@ function updateMastersFromData() {
 async function initializeApp(data) {
     jsonData = data || [];
     
+    // Debug: verificar datos cargados
+    console.log('initializeApp - jsonData length:', jsonData.length);
+    if (jsonData.length > 0) {
+        console.log('Primera entrada de ejemplo:', jsonData[0]);
+    }
+    
     // Cargar maestros desde la base de datos
     await loadMasters();
     
     // Actualizar selectedPersons con los nombres
     selectedPersons = new Set(masterPersons.map(p => p.nombre));
+    
+    // Inicializar currentDate al mes actual si no está inicializado
+    if (!currentDate || isNaN(currentDate.getTime())) {
+        currentDate = new Date();
+    }
     
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('mainContent').classList.add('visible');
@@ -2259,15 +2270,25 @@ function navigate(dir) {
 
 function renderTimeline() {
     const container = document.getElementById('timelineContainer');
+    if (!container) {
+        console.error('No se encontró el elemento timelineContainer');
+        return;
+    }
+    
     const { start, end } = getViewRange();
     const days = getWorkingDays(start, end);
     const today = new Date(); today.setHours(0,0,0,0);
 
-    const filterProject = document.getElementById('filterProject').value;
-    const filterTask = document.getElementById('filterTask').value;
-    const filterType = document.getElementById('filterType').value;
+    const filterProjectInput = document.getElementById('filterProjectInput');
+    const filterTaskInput = document.getElementById('filterTaskInput');
+    const filterProject = filterProjectInput?.dataset.value || '';
+    const filterTask = filterTaskInput?.dataset.value || '';
+    const filterType = document.getElementById('filterType')?.value || '';
 
-    let filteredPersons = selectedPersons.size > 0 ? [...selectedPersons].sort() : masterPersons;
+    // Usar nombres de personas, no objetos
+    let filteredPersons = selectedPersons.size > 0 
+        ? [...selectedPersons].sort() 
+        : masterPersons.map(p => p.nombre || p).sort();
     let filteredData = jsonData.filter(d => {
         if (!d.assignee) return false;
         if (selectedPersons.size > 0 && !selectedPersons.has(d.assignee)) return false;
@@ -2399,6 +2420,10 @@ function renderTimeline() {
 
 // ========== LOAD DATA ON START ==========
 document.addEventListener('DOMContentLoaded', async () => {
+    // Inicializar currentDate al mes actual
+    currentDate = new Date();
+    viewMode = 'month';
+    
     // Verificar autenticación antes de cargar datos
     const isAuthenticated = await checkAuthentication();
     if (!isAuthenticated) {
@@ -2452,7 +2477,8 @@ document.getElementById('nextBtn').addEventListener('click', () => navigate(1));
 document.getElementById('todayBtn').addEventListener('click', () => { currentDate = new Date(); renderTimeline(); });
 
 document.getElementById('selectAllBtn').addEventListener('click', () => {
-    selectedPersons = new Set(masterPersons);
+    // Usar los nombres de las personas, no los objetos
+    selectedPersons = new Set(masterPersons.map(p => p.nombre || p));
     renderPersonSelector(); updateStats(); renderTable(); renderTimeline();
 });
 document.getElementById('selectNoneBtn').addEventListener('click', () => {
