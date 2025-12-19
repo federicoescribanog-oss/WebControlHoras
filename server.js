@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const { SecretClient } = require('@azure/keyvault-secrets');
 const { DefaultAzureCredential } = require('@azure/identity');
 require('dotenv').config();
@@ -134,6 +135,17 @@ async function getSecret(secretName) {
     }
 }
 
+// ========== CONFIGURACIÓN DE EMAIL ==========
+let emailConfig = {
+    host: null,
+    port: null,
+    secure: null,
+    user: null,
+    password: null,
+    from: null
+};
+let emailTransporter = null;
+
 // ========== CONFIGURACIÓN DE AUTENTICACIÓN ==========
 let JWT_SECRET = null;
 const JWT_EXPIRES_IN = '24h'; // Token válido por 24 horas
@@ -146,11 +158,35 @@ async function loadSecrets() {
         // Cargar secretos
         JWT_SECRET = await getSecret('JWT-SECRET');
         
+        // Cargar configuración de email (opcional, no crítico)
+        emailConfig.host = await getSecret('EMAIL-HOST') || process.env.EMAIL_HOST || 'smtp.office365.com';
+        emailConfig.port = parseInt(await getSecret('EMAIL-PORT') || process.env.EMAIL_PORT || '587');
+        emailConfig.secure = (await getSecret('EMAIL-SECURE') || process.env.EMAIL_SECURE || 'false') === 'true';
+        emailConfig.user = await getSecret('EMAIL-USER') || process.env.EMAIL_USER;
+        emailConfig.password = await getSecret('EMAIL-PASSWORD') || process.env.EMAIL_PASSWORD;
+        emailConfig.from = await getSecret('EMAIL-FROM') || process.env.EMAIL_FROM || emailConfig.user;
+        
         // Validar que JWT_SECRET esté configurado
         if (!JWT_SECRET) {
             console.error('❌ ERROR: JWT_SECRET no encontrado en Key Vault ni en variables de entorno');
             console.error('Configura JWT-SECRET en Key Vault o JWT_SECRET en App Service');
             process.exit(1);
+        }
+        
+        // Configurar transporter de email si hay credenciales
+        if (emailConfig.user && emailConfig.password) {
+            emailTransporter = nodemailer.createTransport({
+                host: emailConfig.host,
+                port: emailConfig.port,
+                secure: emailConfig.secure,
+                auth: {
+                    user: emailConfig.user,
+                    pass: emailConfig.password
+                }
+            });
+            console.log('✅ Configuración de email cargada');
+        } else {
+            console.log('⚠️ Configuración de email no disponible (EMAIL-USER y EMAIL-PASSWORD no configurados)');
         }
         
         console.log('✅ Secretos cargados desde Key Vault');
@@ -162,7 +198,109 @@ async function loadSecrets() {
             console.error('❌ ERROR: No se pudo cargar JWT_SECRET');
             process.exit(1);
         }
+        
+        // Fallback para email
+        emailConfig.host = process.env.EMAIL_HOST || 'smtp.office365.com';
+        emailConfig.port = parseInt(process.env.EMAIL_PORT || '587');
+        emailConfig.secure = (process.env.EMAIL_SECURE || 'false') === 'true';
+        emailConfig.user = process.env.EMAIL_USER;
+        emailConfig.password = process.env.EMAIL_PASSWORD;
+        emailConfig.from = process.env.EMAIL_FROM || emailConfig.user;
+        
+        if (emailConfig.user && emailConfig.password) {
+            emailTransporter = nodemailer.createTransport({
+                host: emailConfig.host,
+                port: emailConfig.port,
+                secure: emailConfig.secure,
+                auth: {
+                    user: emailConfig.user,
+                    pass: emailConfig.password
+                }
+            });
+            console.log('✅ Configuración de email cargada desde variables de entorno');
+        }
+        
         console.log('⚠️ Usando variables de entorno como fallback');
+    }
+}
+
+// ========== FUNCIÓN PARA ENVIAR CORREO DE BIENVENIDA ==========
+async function sendWelcomeEmail(email, password, rolNombre) {
+    // Si no hay configuración de email, no hacer nada
+    if (!emailTransporter || !emailConfig.user) {
+        console.log('⚠️ No se puede enviar correo: configuración de email no disponible');
+        return;
+    }
+    
+    const webUrl = process.env.WEB_URL || 'https://webcontrolhoras.z6.web.core.windows.net';
+    
+    // Crear contenido del correo
+    const mailOptions = {
+        from: emailConfig.from,
+        to: email,
+        subject: 'Bienvenido a Control de Horas - Logicalis',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background-color: #0a0e17; color: #e8eaed; padding: 20px; text-align: center; }
+                    .content { background-color: #f9f9f9; padding: 20px; }
+                    .info-box { background-color: #fff; border-left: 4px solid #00d4aa; padding: 15px; margin: 15px 0; }
+                    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Control de Horas - Logicalis</h1>
+                    </div>
+                    <div class="content">
+                        <p>Buenos días <strong>${email}</strong>,</p>
+                        <p>Le enviamos este correo para notificarle que le hemos dado de alta en la web de control de horas de Logicalis.</p>
+                        
+                        <div class="info-box">
+                            <p><strong>URL de acceso:</strong> <a href="${webUrl}">${webUrl}</a></p>
+                            <p><strong>Usuario:</strong> ${email}</p>
+                            <p><strong>Contraseña:</strong> ${password}</p>
+                            <p><strong>Rol:</strong> ${rolNombre}</p>
+                        </div>
+                        
+                        <p>Si tiene algún problema, se puede poner en contacto con <strong>Federico Escribano</strong>.</p>
+                        <p>Gracias.</p>
+                    </div>
+                    <div class="footer">
+                        <p>Este es un correo automático, por favor no responda.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `,
+        text: `
+Buenos días ${email},
+
+Le enviamos este correo para notificarle que le hemos dado de alta en la web de control de horas de Logicalis.
+
+URL de acceso: ${webUrl}
+Usuario: ${email}
+Contraseña: ${password}
+Rol: ${rolNombre}
+
+Si tiene algún problema, se puede poner en contacto con Federico Escribano.
+
+Gracias.
+        `
+    };
+    
+    try {
+        const info = await emailTransporter.sendMail(mailOptions);
+        console.log(`✅ Correo de bienvenida enviado a ${email}:`, info.messageId);
+    } catch (error) {
+        console.error(`❌ Error al enviar correo a ${email}:`, error.message);
+        throw error;
     }
 }
 
@@ -724,6 +862,13 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
             `);
         
         const newId = result.recordset[0].id;
+        
+        // Enviar correo de bienvenida (no bloquea la respuesta si falla)
+        sendWelcomeEmail(usuario, password, rolNombre).catch(err => {
+            console.error('❌ Error al enviar correo de bienvenida:', err.message);
+            // No fallar la creación del usuario si el correo falla
+        });
+        
         res.status(201).json({ 
             id: newId, 
             message: 'Usuario creado correctamente',
