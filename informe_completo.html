@@ -570,6 +570,7 @@
                             </svg>
                             Personas
                         </h3>
+                        <input type="text" id="searchPersonInput" class="search-master-input" placeholder="🔍 Buscar persona..." style="width:100%;margin-bottom:0.5rem;padding:0.5rem;">
                         <div class="master-list" id="personsList"></div>
                         <div class="add-master-row">
                             <input type="text" id="newPersonInput" placeholder="Nueva persona...">
@@ -583,6 +584,7 @@
                             </svg>
                             Proyectos (Phase)
                         </h3>
+                        <input type="text" id="searchProjectInput" class="search-master-input" placeholder="🔍 Buscar proyecto..." style="width:100%;margin-bottom:0.5rem;padding:0.5rem;">
                         <div class="master-list" id="projectsList"></div>
                         <div class="add-master-row">
                             <input type="text" id="newProjectInput" placeholder="Nuevo proyecto...">
@@ -596,6 +598,7 @@
                             </svg>
                             Tareas
                         </h3>
+                        <input type="text" id="searchTaskInput" class="search-master-input" placeholder="🔍 Buscar tarea..." style="width:100%;margin-bottom:0.5rem;padding:0.5rem;">
                         <div class="master-list" id="tasksList"></div>
                         <div class="add-master-row">
                             <input type="text" id="newTaskInput" placeholder="Nueva tarea...">
@@ -614,14 +617,17 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>Persona *</label>
+                                <input type="text" id="searchEntryPerson" class="search-select-input" placeholder="🔍 Buscar persona..." style="width:100%;margin-bottom:0.25rem;padding:0.4rem;font-size:0.85rem;">
                                 <select id="entryPerson"><option value="">Seleccionar...</option></select>
                             </div>
                             <div class="form-group">
                                 <label>Proyecto (Phase) *</label>
+                                <input type="text" id="searchEntryProject" class="search-select-input" placeholder="🔍 Buscar proyecto..." style="width:100%;margin-bottom:0.25rem;padding:0.4rem;font-size:0.85rem;">
                                 <select id="entryProject"><option value="">Seleccionar...</option></select>
                             </div>
                             <div class="form-group">
                                 <label>Tarea *</label>
+                                <input type="text" id="searchEntryTask" class="search-select-input" placeholder="🔍 Buscar tarea..." style="width:100%;margin-bottom:0.25rem;padding:0.4rem;font-size:0.85rem;">
                                 <select id="entryTask"><option value="">Seleccionar...</option></select>
                             </div>
                             <div class="form-group">
@@ -1041,15 +1047,32 @@ function renderMasterLists() {
         return 1; // Por defecto activo si no se reconoce
     };
     
-    const visiblePersons = isAdmin 
+    // Obtener filtros de búsqueda
+    const searchPerson = (document.getElementById('searchPersonInput')?.value || '').toLowerCase().trim();
+    const searchProject = (document.getElementById('searchProjectInput')?.value || '').toLowerCase().trim();
+    const searchTask = (document.getElementById('searchTaskInput')?.value || '').toLowerCase().trim();
+    
+    // Filtrar y normalizar
+    let visiblePersons = isAdmin 
         ? masterPersons.map(p => ({ ...p, activo: normalizeActivo(p.activo) }))
         : masterPersons.filter(p => normalizeActivo(p.activo) === 1).map(p => ({ ...p, activo: 1 }));
-    const visibleProjects = isAdmin 
+    let visibleProjects = isAdmin 
         ? masterProjects.map(p => ({ ...p, activo: normalizeActivo(p.activo) }))
         : masterProjects.filter(p => normalizeActivo(p.activo) === 1).map(p => ({ ...p, activo: 1 }));
-    const visibleTasks = isAdmin 
+    let visibleTasks = isAdmin 
         ? masterTasks.map(t => ({ ...t, activo: normalizeActivo(t.activo) }))
         : masterTasks.filter(t => normalizeActivo(t.activo) === 1).map(t => ({ ...t, activo: 1 }));
+    
+    // Aplicar filtro de búsqueda
+    if (searchPerson) {
+        visiblePersons = visiblePersons.filter(p => p.nombre.toLowerCase().includes(searchPerson));
+    }
+    if (searchProject) {
+        visibleProjects = visibleProjects.filter(p => p.nombre.toLowerCase().includes(searchProject));
+    }
+    if (searchTask) {
+        visibleTasks = visibleTasks.filter(t => t.nombre.toLowerCase().includes(searchTask));
+    }
     
     // Trabajar con objetos {id, nombre, activo}
     document.getElementById('personsList').innerHTML = visiblePersons.length > 0 
@@ -1320,7 +1343,7 @@ async function deleteMaster(type, value) {
         
         if (isAdmin) {
             // Admin: actualizar el estado a inactivo en el array local
-            if (type === 'person') {
+    if (type === 'person') {
                 const item = masterPersons.find(p => p.nombre === value);
                 if (item) item.activo = 0;
             } else if (type === 'project') {
@@ -1334,19 +1357,19 @@ async function deleteMaster(type, value) {
             // No admin: eliminar del array local (no lo verá más)
             if (type === 'person') {
                 masterPersons = masterPersons.filter(p => p.nombre !== value);
-                selectedPersons.delete(value);
-            } else if (type === 'project') {
+        selectedPersons.delete(value);
+    } else if (type === 'project') {
                 masterProjects = masterProjects.filter(p => p.nombre !== value);
-            } else if (type === 'task') {
+    } else if (type === 'task') {
                 masterTasks = masterTasks.filter(t => t.nombre !== value);
             }
-        }
-        
+    }
+    
         // Recargar maestros desde la BD para asegurar sincronización
         await loadMasters();
         // Recargar registros para reflejar los cambios
         await loadFromAPI();
-        refreshAll();
+    refreshAll();
     } catch (err) {
         alert(`❌ Error al eliminar: ${err.message}`);
         console.error('Error:', err);
@@ -1423,14 +1446,56 @@ function populateSelects() {
     const filterProject = document.getElementById('filterProject');
     const filterTask = document.getElementById('filterTask');
     
+    // Obtener filtros de búsqueda para selects
+    const searchEntryPerson = (document.getElementById('searchEntryPerson')?.value || '').toLowerCase().trim();
+    const searchEntryProject = (document.getElementById('searchEntryProject')?.value || '').toLowerCase().trim();
+    const searchEntryTask = (document.getElementById('searchEntryTask')?.value || '').toLowerCase().trim();
+    
     // Usar objetos {id, nombre, activo} - Solo mostrar activos en los selects
-    const activePersons = masterPersons.filter(p => p.activo === 1);
-    const activeProjects = masterProjects.filter(p => p.activo === 1);
-    const activeTasks = masterTasks.filter(t => t.activo === 1);
+    let activePersons = masterPersons.filter(p => {
+        const activo = p.activo === undefined || p.activo === null ? 1 : (p.activo === true || p.activo === 1 ? 1 : 0);
+        return activo === 1;
+    });
+    let activeProjects = masterProjects.filter(p => {
+        const activo = p.activo === undefined || p.activo === null ? 1 : (p.activo === true || p.activo === 1 ? 1 : 0);
+        return activo === 1;
+    });
+    let activeTasks = masterTasks.filter(t => {
+        const activo = t.activo === undefined || t.activo === null ? 1 : (t.activo === true || t.activo === 1 ? 1 : 0);
+        return activo === 1;
+    });
+    
+    // Aplicar filtro de búsqueda
+    if (searchEntryPerson) {
+        activePersons = activePersons.filter(p => p.nombre.toLowerCase().includes(searchEntryPerson));
+    }
+    if (searchEntryProject) {
+        activeProjects = activeProjects.filter(p => p.nombre.toLowerCase().includes(searchEntryProject));
+    }
+    if (searchEntryTask) {
+        activeTasks = activeTasks.filter(t => t.nombre.toLowerCase().includes(searchEntryTask));
+    }
+    
+    // Guardar valor seleccionado antes de actualizar
+    const selectedPerson = personSelect.value;
+    const selectedProject = projectSelect.value;
+    const selectedTask = taskSelect.value;
     
     personSelect.innerHTML = '<option value="">Seleccionar...</option>' + activePersons.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
     projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + activeProjects.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
     taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + activeTasks.map(t => `<option value="${t.nombre}" data-id="${t.id}">${t.nombre}</option>`).join('');
+    
+    // Restaurar valor seleccionado si existe en las opciones filtradas
+    if (selectedPerson && activePersons.some(p => p.nombre === selectedPerson)) {
+        personSelect.value = selectedPerson;
+    }
+    if (selectedProject && activeProjects.some(p => p.nombre === selectedProject)) {
+        projectSelect.value = selectedProject;
+    }
+    if (selectedTask && activeTasks.some(t => t.nombre === selectedTask)) {
+        taskSelect.value = selectedTask;
+    }
+    
     filterProject.innerHTML = '<option value="">Todos</option>' + activeProjects.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
     filterTask.innerHTML = '<option value="">Todas</option>' + activeTasks.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
 }
@@ -2208,6 +2273,16 @@ document.getElementById('addTaskBtn').addEventListener('click', () => addMaster(
 document.getElementById('newPersonInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') addMaster('person'); });
 document.getElementById('newProjectInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') addMaster('project'); });
 document.getElementById('newTaskInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') addMaster('task'); });
+
+// Event listeners para búsqueda en listas de maestros
+document.getElementById('searchPersonInput').addEventListener('input', () => renderMasterLists());
+document.getElementById('searchProjectInput').addEventListener('input', () => renderMasterLists());
+document.getElementById('searchTaskInput').addEventListener('input', () => renderMasterLists());
+
+// Event listeners para búsqueda en selects del formulario
+document.getElementById('searchEntryPerson').addEventListener('input', () => populateSelects());
+document.getElementById('searchEntryProject').addEventListener('input', () => populateSelects());
+document.getElementById('searchEntryTask').addEventListener('input', () => populateSelects());
 
 document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
 document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
