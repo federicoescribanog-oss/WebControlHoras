@@ -152,29 +152,50 @@ if (!sqlConfig.user || !sqlConfig.password || !sqlConfig.server || !sqlConfig.da
 
 // Pool de conexiones
 let pool = null;
+let poolInitializing = false;
 
 async function getPool() {
-    if (!pool) {
-        try {
-            pool = await sql.connect(sqlConfig);
-            console.log('✅ Conectado a SQL Server');
-        } catch (err) {
-            console.error('❌ Error de conexión a SQL Server:', err);
-            throw err;
+    if (pool && pool.connected) {
+        return pool;
+    }
+    
+    // Si ya se está inicializando, esperar
+    if (poolInitializing) {
+        // Esperar hasta 10 segundos
+        const maxWait = 10000;
+        const start = Date.now();
+        while (poolInitializing && (Date.now() - start) < maxWait) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (pool && pool.connected) {
+            return pool;
         }
     }
-    return pool;
+    
+    // Inicializar pool
+    poolInitializing = true;
+    try {
+        pool = await sql.connect(sqlConfig);
+        console.log('✅ Conectado a SQL Server');
+        poolInitializing = false;
+        return pool;
+    } catch (err) {
+        poolInitializing = false;
+        console.error('❌ Error de conexión a SQL Server:', err);
+        throw err;
+    }
 }
 
-// Middleware para manejar errores de conexión
-app.use(async (req, res, next) => {
+// Inicializar pool en background (no bloquea el inicio del servidor)
+// Esto mejora el tiempo de respuesta del primer request
+setTimeout(async () => {
     try {
         await getPool();
-        next();
+        console.log('✅ Pool de conexiones inicializado en background');
     } catch (err) {
-        res.status(500).json({ error: 'Error de conexión a la base de datos', details: err.message });
+        console.error('⚠️  No se pudo inicializar el pool en background, se intentará en el primer request');
     }
-});
+}, 100); // Esperar 100ms para que el servidor termine de iniciar
 
 // ========== RUTAS DE AUTENTICACIÓN ==========
 
@@ -884,16 +905,18 @@ app.delete('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor
 // ========== RUTAS PARA DIMENSIONES (MAESTROS) ==========
 
 // GET /api/personas - Obtener todas las personas
+// Los admins ven también las inactivas
 app.get('/api/personas', authenticateToken, async (req, res) => {
     try {
         const pool = await getPool();
-        const result = await pool.request().query(`
-            SELECT id, nombre, email, activo, fecha_creacion
-            FROM personas
-            WHERE activo = 1
-            ORDER BY nombre ASC
-        `);
+        const userRole = req.user?.rol;
+        const isAdmin = userRole === 'admin';
         
+        const query = isAdmin 
+            ? `SELECT id, nombre, email, activo, fecha_creacion FROM personas ORDER BY activo DESC, nombre ASC`
+            : `SELECT id, nombre, email, activo, fecha_creacion FROM personas WHERE activo = 1 ORDER BY nombre ASC`;
+        
+        const result = await pool.request().query(query);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error al obtener personas:', err);
@@ -944,16 +967,18 @@ app.post('/api/personas', authenticateToken, requireRole('admin', 'gestor'), asy
 });
 
 // GET /api/proyectos - Obtener todos los proyectos
+// Los admins ven también los inactivos
 app.get('/api/proyectos', authenticateToken, async (req, res) => {
     try {
         const pool = await getPool();
-        const result = await pool.request().query(`
-            SELECT id, nombre, descripcion, activo, fecha_creacion
-            FROM proyectos
-            WHERE activo = 1
-            ORDER BY nombre ASC
-        `);
+        const userRole = req.user?.rol;
+        const isAdmin = userRole === 'admin';
         
+        const query = isAdmin 
+            ? `SELECT id, nombre, descripcion, activo, fecha_creacion FROM proyectos ORDER BY activo DESC, nombre ASC`
+            : `SELECT id, nombre, descripcion, activo, fecha_creacion FROM proyectos WHERE activo = 1 ORDER BY nombre ASC`;
+        
+        const result = await pool.request().query(query);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error al obtener proyectos:', err);
@@ -1004,16 +1029,18 @@ app.post('/api/proyectos', authenticateToken, requireRole('admin', 'gestor'), as
 });
 
 // GET /api/tareas - Obtener todas las tareas
+// Los admins ven también las inactivas
 app.get('/api/tareas', authenticateToken, async (req, res) => {
     try {
         const pool = await getPool();
-        const result = await pool.request().query(`
-            SELECT id, nombre, descripcion, activo, fecha_creacion
-            FROM tareas
-            WHERE activo = 1
-            ORDER BY nombre ASC
-        `);
+        const userRole = req.user?.rol;
+        const isAdmin = userRole === 'admin';
         
+        const query = isAdmin 
+            ? `SELECT id, nombre, descripcion, activo, fecha_creacion FROM tareas ORDER BY activo DESC, nombre ASC`
+            : `SELECT id, nombre, descripcion, activo, fecha_creacion FROM tareas WHERE activo = 1 ORDER BY nombre ASC`;
+        
+        const result = await pool.request().query(query);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error al obtener tareas:', err);
@@ -1213,6 +1240,221 @@ app.delete('/api/tareas/:id', authenticateToken, requireRole('admin', 'gestor'),
     } catch (err) {
         console.error('Error al eliminar tarea:', err);
         res.status(500).json({ error: 'Error al eliminar tarea', details: err.message });
+    }
+});
+
+// ========== RUTAS PARA REACTIVAR MAESTROS (SOLO ADMIN) ==========
+
+// PUT /api/personas/:id/activate - Reactivar persona (solo admin)
+// Reactiva la persona y todos los registros asociados si todos sus maestros están activos
+app.put('/api/personas/:id/activate', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        // Verificar que la persona existe y está inactiva
+        const checkPerson = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id, nombre, activo FROM personas WHERE id = @id');
+        
+        if (checkPerson.recordset.length === 0) {
+            return res.status(404).json({ error: 'Persona no encontrada' });
+        }
+        
+        const persona = checkPerson.recordset[0];
+        if (persona.activo === 1) {
+            return res.status(400).json({ error: 'La persona ya está activa' });
+        }
+        
+        // Reactivar la persona
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query('UPDATE personas SET activo = 1 WHERE id = @id');
+        
+        // Buscar todos los registros inactivos asociados a esta persona
+        const registrosInactivos = await pool.request()
+            .input('persona_id', sql.Int, id)
+            .query(`
+                SELECT c.id, c.assignee_id, c.phase_id, c.task_id
+                FROM controlhorario c
+                WHERE c.assignee_id = @persona_id AND c.activo = 0
+            `);
+        
+        let reactivados = 0;
+        
+        // Para cada registro, verificar si todos sus maestros están activos
+        for (const registro of registrosInactivos.recordset) {
+            // Verificar que persona, proyecto y tarea estén activos
+            const checkMaestros = await pool.request()
+                .input('persona_id', sql.Int, registro.assignee_id)
+                .input('proyecto_id', sql.Int, registro.phase_id)
+                .input('tarea_id', sql.Int, registro.task_id)
+                .query(`
+                    SELECT 
+                        (SELECT activo FROM personas WHERE id = @persona_id) as persona_activa,
+                        (SELECT activo FROM proyectos WHERE id = @proyecto_id) as proyecto_activo,
+                        (SELECT activo FROM tareas WHERE id = @tarea_id) as tarea_activa
+                `);
+            
+            const maestros = checkMaestros.recordset[0];
+            
+            // Solo reactivar si TODOS los maestros están activos
+            if (maestros.persona_activa === 1 && maestros.proyecto_activo === 1 && maestros.tarea_activa === 1) {
+                await pool.request()
+                    .input('registro_id', sql.Int, registro.id)
+                    .query('UPDATE controlhorario SET activo = 1 WHERE id = @registro_id');
+                reactivados++;
+            }
+        }
+        
+        res.json({ 
+            message: `Persona reactivada correctamente`,
+            recordsReactivated: reactivados,
+            totalRecordsChecked: registrosInactivos.recordset.length
+        });
+    } catch (err) {
+        console.error('Error al reactivar persona:', err);
+        res.status(500).json({ error: 'Error al reactivar persona', details: err.message });
+    }
+});
+
+// PUT /api/proyectos/:id/activate - Reactivar proyecto (solo admin)
+app.put('/api/proyectos/:id/activate', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        // Verificar que el proyecto existe y está inactivo
+        const checkProject = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id, nombre, activo FROM proyectos WHERE id = @id');
+        
+        if (checkProject.recordset.length === 0) {
+            return res.status(404).json({ error: 'Proyecto no encontrado' });
+        }
+        
+        const proyecto = checkProject.recordset[0];
+        if (proyecto.activo === 1) {
+            return res.status(400).json({ error: 'El proyecto ya está activo' });
+        }
+        
+        // Reactivar el proyecto
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query('UPDATE proyectos SET activo = 1 WHERE id = @id');
+        
+        // Buscar todos los registros inactivos asociados a este proyecto
+        const registrosInactivos = await pool.request()
+            .input('proyecto_id', sql.Int, id)
+            .query(`
+                SELECT c.id, c.assignee_id, c.phase_id, c.task_id
+                FROM controlhorario c
+                WHERE c.phase_id = @proyecto_id AND c.activo = 0
+            `);
+        
+        let reactivados = 0;
+        
+        // Para cada registro, verificar si todos sus maestros están activos
+        for (const registro of registrosInactivos.recordset) {
+            const checkMaestros = await pool.request()
+                .input('persona_id', sql.Int, registro.assignee_id)
+                .input('proyecto_id', sql.Int, registro.phase_id)
+                .input('tarea_id', sql.Int, registro.task_id)
+                .query(`
+                    SELECT 
+                        (SELECT activo FROM personas WHERE id = @persona_id) as persona_activa,
+                        (SELECT activo FROM proyectos WHERE id = @proyecto_id) as proyecto_activo,
+                        (SELECT activo FROM tareas WHERE id = @tarea_id) as tarea_activa
+                `);
+            
+            const maestros = checkMaestros.recordset[0];
+            
+            if (maestros.persona_activa === 1 && maestros.proyecto_activo === 1 && maestros.tarea_activa === 1) {
+                await pool.request()
+                    .input('registro_id', sql.Int, registro.id)
+                    .query('UPDATE controlhorario SET activo = 1 WHERE id = @registro_id');
+                reactivados++;
+            }
+        }
+        
+        res.json({ 
+            message: `Proyecto reactivado correctamente`,
+            recordsReactivated: reactivados,
+            totalRecordsChecked: registrosInactivos.recordset.length
+        });
+    } catch (err) {
+        console.error('Error al reactivar proyecto:', err);
+        res.status(500).json({ error: 'Error al reactivar proyecto', details: err.message });
+    }
+});
+
+// PUT /api/tareas/:id/activate - Reactivar tarea (solo admin)
+app.put('/api/tareas/:id/activate', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        // Verificar que la tarea existe y está inactiva
+        const checkTask = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id, nombre, activo FROM tareas WHERE id = @id');
+        
+        if (checkTask.recordset.length === 0) {
+            return res.status(404).json({ error: 'Tarea no encontrada' });
+        }
+        
+        const tarea = checkTask.recordset[0];
+        if (tarea.activo === 1) {
+            return res.status(400).json({ error: 'La tarea ya está activa' });
+        }
+        
+        // Reactivar la tarea
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query('UPDATE tareas SET activo = 1 WHERE id = @id');
+        
+        // Buscar todos los registros inactivos asociados a esta tarea
+        const registrosInactivos = await pool.request()
+            .input('tarea_id', sql.Int, id)
+            .query(`
+                SELECT c.id, c.assignee_id, c.phase_id, c.task_id
+                FROM controlhorario c
+                WHERE c.task_id = @tarea_id AND c.activo = 0
+            `);
+        
+        let reactivados = 0;
+        
+        // Para cada registro, verificar si todos sus maestros están activos
+        for (const registro of registrosInactivos.recordset) {
+            const checkMaestros = await pool.request()
+                .input('persona_id', sql.Int, registro.assignee_id)
+                .input('proyecto_id', sql.Int, registro.phase_id)
+                .input('tarea_id', sql.Int, registro.task_id)
+                .query(`
+                    SELECT 
+                        (SELECT activo FROM personas WHERE id = @persona_id) as persona_activa,
+                        (SELECT activo FROM proyectos WHERE id = @proyecto_id) as proyecto_activo,
+                        (SELECT activo FROM tareas WHERE id = @tarea_id) as tarea_activa
+                `);
+            
+            const maestros = checkMaestros.recordset[0];
+            
+            if (maestros.persona_activa === 1 && maestros.proyecto_activo === 1 && maestros.tarea_activa === 1) {
+                await pool.request()
+                    .input('registro_id', sql.Int, registro.id)
+                    .query('UPDATE controlhorario SET activo = 1 WHERE id = @registro_id');
+                reactivados++;
+            }
+        }
+        
+        res.json({ 
+            message: `Tarea reactivada correctamente`,
+            recordsReactivated: reactivados,
+            totalRecordsChecked: registrosInactivos.recordset.length
+        });
+    } catch (err) {
+        console.error('Error al reactivar tarea:', err);
+        res.status(500).json({ error: 'Error al reactivar tarea', details: err.message });
     }
 });
 

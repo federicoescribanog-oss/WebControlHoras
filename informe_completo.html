@@ -884,8 +884,12 @@ async function loadMasters() {
         });
         if (personasResponse.ok) {
             const personas = await personasResponse.json();
-            masterPersons = personas.map(p => ({ id: p.id, nombre: p.nombre }));
-            masterPersons.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+            masterPersons = personas.map(p => ({ id: p.id, nombre: p.nombre, activo: p.activo }));
+            // Ordenar: activos primero, luego inactivos, ambos por nombre
+            masterPersons.sort((a, b) => {
+                if (a.activo !== b.activo) return b.activo - a.activo; // Activos primero
+                return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
+            });
         }
         
         // Cargar proyectos
@@ -894,8 +898,11 @@ async function loadMasters() {
         });
         if (proyectosResponse.ok) {
             const proyectos = await proyectosResponse.json();
-            masterProjects = proyectos.map(p => ({ id: p.id, nombre: p.nombre }));
-            masterProjects.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+            masterProjects = proyectos.map(p => ({ id: p.id, nombre: p.nombre, activo: p.activo }));
+            masterProjects.sort((a, b) => {
+                if (a.activo !== b.activo) return b.activo - a.activo;
+                return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
+            });
         }
         
         // Cargar tareas
@@ -904,8 +911,11 @@ async function loadMasters() {
         });
         if (tareasResponse.ok) {
             const tareas = await tareasResponse.json();
-            masterTasks = tareas.map(t => ({ id: t.id, nombre: t.nombre }));
-            masterTasks.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
+            masterTasks = tareas.map(t => ({ id: t.id, nombre: t.nombre, activo: t.activo }));
+            masterTasks.sort((a, b) => {
+                if (a.activo !== b.activo) return b.activo - a.activo;
+                return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
+            });
         }
     } catch (err) {
         console.error('Error al cargar maestros:', err);
@@ -991,22 +1001,51 @@ function refreshAll() {
 function updateSASStatus() {
     const statusEl = document.getElementById('sasStatus');
     statusEl.textContent = '✓ Conectado a Base de Datos SQL Server';
-    statusEl.style.color = 'var(--success)';
+        statusEl.style.color = 'var(--success)';
 }
 
 // ========== MASTER LISTS ==========
 function renderMasterLists() {
-    // Trabajar con objetos {id, nombre}
-    document.getElementById('personsList').innerHTML = masterPersons.length > 0 
-        ? masterPersons.map(p => `<div class="master-item"><span>${p.nombre}</span><button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p.nombre)}')">×</button></div>`).join('')
+    const userRole = getUserRole();
+    const isAdmin = userRole === 'admin';
+    const canDelete = userRole === 'admin' || userRole === 'gestor';
+    
+    // Filtrar: no admin solo ve activos, admin ve todos
+    const visiblePersons = isAdmin ? masterPersons : masterPersons.filter(p => p.activo === 1);
+    const visibleProjects = isAdmin ? masterProjects : masterProjects.filter(p => p.activo === 1);
+    const visibleTasks = isAdmin ? masterTasks : masterTasks.filter(t => t.activo === 1);
+    
+    // Trabajar con objetos {id, nombre, activo}
+    document.getElementById('personsList').innerHTML = visiblePersons.length > 0 
+        ? visiblePersons.map(p => {
+            const inactiveClass = p.activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+            const inactiveLabel = p.activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
+            // Botón borrar: solo para activos y si tiene permisos
+            const deleteBtn = (p.activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('person','${escapeHtml(p.nombre)}')">×</button>` : '';
+            // Botón reactivar: solo para admin en inactivos
+            const activateBtn = (p.activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('person','${escapeHtml(p.nombre)}',${p.id})" title="Reactivar">↻</button>` : '';
+            return `<div class="master-item"${inactiveClass}><span>${p.nombre}${inactiveLabel}</span>${activateBtn}${deleteBtn}</div>`;
+        }).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin personas</div>';
     
-    document.getElementById('projectsList').innerHTML = masterProjects.length > 0
-        ? masterProjects.map(p => `<div class="master-item"><span>${p.nombre}</span><button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p.nombre)}')">×</button></div>`).join('')
+    document.getElementById('projectsList').innerHTML = visibleProjects.length > 0
+        ? visibleProjects.map(p => {
+            const inactiveClass = p.activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+            const inactiveLabel = p.activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
+            const deleteBtn = (p.activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('project','${escapeHtml(p.nombre)}')">×</button>` : '';
+            const activateBtn = (p.activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('project','${escapeHtml(p.nombre)}',${p.id})" title="Reactivar">↻</button>` : '';
+            return `<div class="master-item"${inactiveClass}><span>${p.nombre}${inactiveLabel}</span>${activateBtn}${deleteBtn}</div>`;
+        }).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin proyectos</div>';
     
-    document.getElementById('tasksList').innerHTML = masterTasks.length > 0
-        ? masterTasks.map(t => `<div class="master-item"><span>${t.nombre}</span><button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t.nombre)}')">×</button></div>`).join('')
+    document.getElementById('tasksList').innerHTML = visibleTasks.length > 0
+        ? visibleTasks.map(t => {
+            const inactiveClass = t.activo === 0 ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+            const inactiveLabel = t.activo === 0 ? ' <span style="color:var(--danger);font-size:0.8rem;">(inactivo)</span>' : '';
+            const deleteBtn = (t.activo === 1 && canDelete) ? `<button class="btn-sm btn-danger" onclick="deleteMaster('task','${escapeHtml(t.nombre)}')">×</button>` : '';
+            const activateBtn = (t.activo === 0 && isAdmin) ? `<button class="btn-sm btn-success" onclick="activateMaster('task','${escapeHtml(t.nombre)}',${t.id})" title="Reactivar">↻</button>` : '';
+            return `<div class="master-item"${inactiveClass}><span>${t.nombre}${inactiveLabel}</span>${activateBtn}${deleteBtn}</div>`;
+        }).join('')
         : '<div class="master-item" style="color:var(--text-secondary)">Sin tareas</div>';
 }
 
@@ -1036,14 +1075,14 @@ async function addMaster(type) {
     
     try {
         let apiUrl, body;
-        
-        if (type === 'person') {
+    
+    if (type === 'person') {
             apiUrl = API_PERSONAS_URL;
             body = { nombre: value };
-        } else if (type === 'project') {
+    } else if (type === 'project') {
             apiUrl = API_PROYECTOS_URL;
             body = { nombre: value };
-        } else if (type === 'task') {
+    } else if (type === 'task') {
             apiUrl = API_TAREAS_URL;
             body = { nombre: value };
         }
@@ -1114,10 +1153,10 @@ async function addMaster(type) {
         } else if (type === 'task') {
             masterTasks.push({ id: newItem.id, nombre: newItem.nombre });
             masterTasks.sort((a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase()));
-        }
-        
-        input.value = '';
-        refreshAll();
+    }
+    
+    input.value = '';
+    refreshAll();
     } catch (err) {
         alert(`❌ Error al guardar: ${err.message}`);
         console.error('Error:', err);
@@ -1239,9 +1278,70 @@ async function deleteMaster(type, value) {
         await loadMasters();
         // Recargar registros para reflejar los cambios
         await loadFromAPI();
-        refreshAll();
+    refreshAll();
     } catch (err) {
         alert(`❌ Error al eliminar: ${err.message}`);
+        console.error('Error:', err);
+    }
+}
+
+async function activateMaster(type, value, id) {
+    // Verificar permisos (solo admin puede reactivar)
+    const userRole = getUserRole();
+    if (userRole !== 'admin') {
+        alert('Solo los administradores pueden reactivar maestros');
+        return;
+    }
+    
+    if (!confirm(`¿Reactivar "${value}"?\n\nEsto también reactivará los registros asociados si todos sus maestros están activos.`)) return;
+    
+    let apiUrl = null;
+    let typeName = '';
+    
+    if (type === 'person') {
+        apiUrl = `${API_PERSONAS_URL}/${id}/activate`;
+        typeName = 'persona';
+    } else if (type === 'project') {
+        apiUrl = `${API_PROYECTOS_URL}/${id}/activate`;
+        typeName = 'proyecto';
+    } else if (type === 'task') {
+        apiUrl = `${API_TAREAS_URL}/${id}/activate`;
+        typeName = 'tarea';
+    }
+    
+    if (!apiUrl) {
+        alert('Error: No se pudo determinar el endpoint');
+        return;
+    }
+    
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'PUT',
+            headers: getAuthHeaders()
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            return;
+        }
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al reactivar');
+        }
+        
+        const result = await response.json();
+        const message = result.recordsReactivated > 0
+            ? `✅ ${typeName} reactivada. ${result.recordsReactivated} registro(s) también reactivado(s).`
+            : `✅ ${typeName} reactivada.`;
+        alert(message);
+        
+        // Recargar maestros y registros
+        await loadMasters();
+        await loadFromAPI();
+        refreshAll();
+    } catch (err) {
+        alert(`❌ Error al reactivar: ${err.message}`);
         console.error('Error:', err);
     }
 }
@@ -1253,12 +1353,16 @@ function populateSelects() {
     const filterProject = document.getElementById('filterProject');
     const filterTask = document.getElementById('filterTask');
     
-    // Usar objetos {id, nombre}
-    personSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterPersons.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
-    projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterProjects.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
-    taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + masterTasks.map(t => `<option value="${t.nombre}" data-id="${t.id}">${t.nombre}</option>`).join('');
-    filterProject.innerHTML = '<option value="">Todos</option>' + masterProjects.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
-    filterTask.innerHTML = '<option value="">Todas</option>' + masterTasks.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
+    // Usar objetos {id, nombre, activo} - Solo mostrar activos en los selects
+    const activePersons = masterPersons.filter(p => p.activo === 1);
+    const activeProjects = masterProjects.filter(p => p.activo === 1);
+    const activeTasks = masterTasks.filter(t => t.activo === 1);
+    
+    personSelect.innerHTML = '<option value="">Seleccionar...</option>' + activePersons.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
+    projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + activeProjects.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
+    taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + activeTasks.map(t => `<option value="${t.nombre}" data-id="${t.id}">${t.nombre}</option>`).join('');
+    filterProject.innerHTML = '<option value="">Todos</option>' + activeProjects.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
+    filterTask.innerHTML = '<option value="">Todas</option>' + activeTasks.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
 }
 
 // ========== ENTRIES TABLE WITH FILTERS ==========
@@ -1406,8 +1510,8 @@ async function saveEntry() {
             
             editingId = null;
             document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
-            document.getElementById('cancelEditBtn').classList.add('hidden');
-        } else {
+        document.getElementById('cancelEditBtn').classList.add('hidden');
+    } else {
             // Insertar nuevo registro
             const response = await fetch(API_URL, {
                 method: 'POST',
@@ -1428,12 +1532,12 @@ async function saveEntry() {
             const result = await response.json();
             // Agregar al array local con el ID retornado
             jsonData.push({ ...entry, id: result.id });
-        }
-        
-        clearEntryForm();
-        updateMastersFromData();
-        selectedPersons = new Set(masterPersons);
-        refreshAll();
+    }
+    
+    clearEntryForm();
+    updateMastersFromData();
+    selectedPersons = new Set(masterPersons);
+    refreshAll();
     } catch (err) {
         alert(`❌ Error al guardar: ${err.message}`);
         console.error('Error:', err);
@@ -1485,9 +1589,9 @@ async function deleteEntry(index) {
         }
         
         // Eliminar del array local
-        jsonData.splice(index, 1);
-        updateMastersFromData();
-        refreshAll();
+    jsonData.splice(index, 1);
+    updateMastersFromData();
+    refreshAll();
     } catch (err) {
         alert(`❌ Error al eliminar: ${err.message}`);
         console.error('Error:', err);
