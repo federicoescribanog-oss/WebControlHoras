@@ -924,9 +924,6 @@ function openChangePasswordModal() {
     document.getElementById('changePasswordError').textContent = '';
     document.getElementById('changePasswordError').style.display = 'none';
     
-    // Resetear requisitos de contraseña
-    updateChangePasswordRequirements();
-    
     // Resetear los campos de contraseña a tipo password y actualizar iconos
     const currentPassword = document.getElementById('currentPassword');
     const newPassword = document.getElementById('newPassword');
@@ -965,6 +962,9 @@ function openChangePasswordModal() {
     
     // Asegurar que los event listeners estén configurados
     setupPasswordToggles();
+    
+    // Resetear requisitos de contraseña al abrir el modal
+    updateChangePasswordRequirements();
 }
 
 function closeChangePasswordModal() {
@@ -3066,23 +3066,11 @@ function updateChangePasswordRequirements() {
     }
 }
 
-// Inicializar toggles y event listeners cuando se carga la página
+// Inicializar toggles cuando se carga la página
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        setupPasswordToggles();
-        // Agregar event listener para actualizar requisitos en tiempo real
-        const newPasswordInput = document.getElementById('newPassword');
-        if (newPasswordInput) {
-            newPasswordInput.addEventListener('input', updateChangePasswordRequirements);
-        }
-    });
+    document.addEventListener('DOMContentLoaded', setupPasswordToggles);
 } else {
     setupPasswordToggles();
-    // Agregar event listener para actualizar requisitos en tiempo real
-    const newPasswordInput = document.getElementById('newPassword');
-    if (newPasswordInput) {
-        newPasswordInput.addEventListener('input', updateChangePasswordRequirements);
-    }
 }
 </script>
 
@@ -3110,7 +3098,7 @@ if (document.readyState === 'loading') {
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-size: 0.9rem; font-weight: 500;">Nueva Contraseña *</label>
                 <div class="password-wrapper">
-                    <input type="password" id="newPassword" required style="width: 100%; padding: 0.75rem; padding-right: 3rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 1rem;">
+                    <input type="password" id="newPassword" required oninput="updateChangePasswordRequirements()" style="width: 100%; padding: 0.75rem; padding-right: 3rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 1rem;">
                     <button type="button" class="password-toggle" id="toggleNewPassword" aria-label="Mostrar contraseña">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
