@@ -207,6 +207,30 @@
         .password-toggle svg { width: 20px; height: 20px; }
         .password-wrapper input { padding-right: 3rem; }
         
+        .password-requirements {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-card);
+            border-radius: 4px;
+        }
+        .password-requirements ul {
+            margin: 0.25rem 0 0 1.25rem;
+            padding: 0;
+            list-style: none;
+        }
+        .password-requirements li {
+            margin: 0.25rem 0;
+            transition: color 0.2s;
+        }
+        .password-requirements li.valid {
+            color: var(--success);
+        }
+        .password-requirements li.invalid {
+            color: var(--error);
+        }
+        
         .entries-table-wrapper { max-height: 400px; overflow-y: auto; }
         .entries-table { width: 100%; }
         .entries-table th, .entries-table td { padding: 0.5rem; font-size: 0.8rem; }
@@ -3030,19 +3054,15 @@ function updateChangePasswordRequirements() {
 
     if (reqLength) {
         reqLength.className = requirements.length ? 'valid' : 'invalid';
-        reqLength.style.color = requirements.length ? 'var(--success)' : 'var(--error)';
     }
     if (reqUppercase) {
         reqUppercase.className = requirements.uppercase ? 'valid' : 'invalid';
-        reqUppercase.style.color = requirements.uppercase ? 'var(--success)' : 'var(--error)';
     }
     if (reqNumber) {
         reqNumber.className = requirements.number ? 'valid' : 'invalid';
-        reqNumber.style.color = requirements.number ? 'var(--success)' : 'var(--error)';
     }
     if (reqSpecial) {
         reqSpecial.className = requirements.special ? 'valid' : 'invalid';
-        reqSpecial.style.color = requirements.special ? 'var(--success)' : 'var(--error)';
     }
 }
 
@@ -3098,13 +3118,13 @@ if (document.readyState === 'loading') {
                         </svg>
                     </button>
                 </div>
-                <div class="password-requirements" id="changePasswordRequirements" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                <div class="password-requirements" id="changePasswordRequirements">
                     <strong>Requisitos de contraseña:</strong>
-                    <ul style="margin: 0.25rem 0 0 1.25rem; padding: 0; list-style: none;">
-                        <li id="req-length" class="invalid" style="margin: 0.25rem 0; color: var(--error);">Mínimo 10 caracteres</li>
-                        <li id="req-uppercase" class="invalid" style="margin: 0.25rem 0; color: var(--error);">Al menos una mayúscula</li>
-                        <li id="req-number" class="invalid" style="margin: 0.25rem 0; color: var(--error);">Al menos un número</li>
-                        <li id="req-special" class="invalid" style="margin: 0.25rem 0; color: var(--error);">Al menos un carácter especial (!@#$%^&*)</li>
+                    <ul>
+                        <li id="req-length" class="invalid">Mínimo 10 caracteres</li>
+                        <li id="req-uppercase" class="invalid">Al menos una mayúscula</li>
+                        <li id="req-number" class="invalid">Al menos un número</li>
+                        <li id="req-special" class="invalid">Al menos un carácter especial (!@#$%^&*)</li>
                     </ul>
                 </div>
             </div>
