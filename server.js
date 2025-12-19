@@ -4,6 +4,8 @@ const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { SecretClient } = require('@azure/keyvault-secrets');
+const { DefaultAzureCredential } = require('@azure/identity');
 require('dotenv').config();
 
 const app = express();
@@ -72,18 +74,91 @@ app.use(express.json());
 // No servir archivos estáticos si la API está separada del frontend
 // app.use(express.static('.')); // Comentado porque el HTML está en Blob Storage
 
-// ========== CONFIGURACIÓN DE AUTENTICACIÓN ==========
-const JWT_SECRET = process.env.JWT_SECRET;
+// ========== CONFIGURACIÓN DE KEY VAULT ==========
+let keyVaultClient = null;
+let secretsCache = {}; // Cache para evitar múltiples llamadas
 
-// Validar que JWT_SECRET esté configurado
-if (!JWT_SECRET) {
-    console.error('❌ ERROR: Variable de entorno JWT_SECRET no configurada');
-    console.error('Configura esta variable en Azure App Service:');
-    console.error('   - Configuration → Application settings');
-    console.error('   - Agregar: JWT_SECRET');
-    process.exit(1);
+async function initializeKeyVault() {
+    const keyVaultName = process.env.KEY_VAULT_NAME;
+    
+    // Si no hay KEY_VAULT_NAME, usar variables de entorno tradicionales (fallback)
+    if (!keyVaultName) {
+        console.log('⚠️ KEY_VAULT_NAME no configurado, usando variables de entorno tradicionales');
+        return null;
+    }
+    
+    try {
+        const keyVaultUrl = `https://${keyVaultName}.vault.azure.net`;
+        const credential = new DefaultAzureCredential();
+        keyVaultClient = new SecretClient(keyVaultUrl, credential);
+        console.log(`✅ Key Vault cliente inicializado: ${keyVaultName}`);
+        return keyVaultClient;
+    } catch (err) {
+        console.error('❌ Error al inicializar Key Vault:', err.message);
+        console.error('⚠️ Fallback a variables de entorno tradicionales');
+        return null;
+    }
 }
+
+async function getSecret(secretName) {
+    // Si hay cache y no es muy antiguo (menos de 5 minutos), usar cache
+    if (secretsCache[secretName] && Date.now() - secretsCache[secretName].timestamp < 5 * 60 * 1000) {
+        return secretsCache[secretName].value;
+    }
+    
+    // Si no hay Key Vault configurado, usar variables de entorno
+    if (!keyVaultClient) {
+        const envName = secretName.replace(/-/g, '_').toUpperCase();
+        return process.env[envName];
+    }
+    
+    try {
+        const secret = await keyVaultClient.getSecret(secretName);
+        // Guardar en cache
+        secretsCache[secretName] = {
+            value: secret.value,
+            timestamp: Date.now()
+        };
+        return secret.value;
+    } catch (err) {
+        console.error(`❌ Error al obtener secreto ${secretName}:`, err.message);
+        // Fallback a variable de entorno
+        const envName = secretName.replace(/-/g, '_').toUpperCase();
+        return process.env[envName];
+    }
+}
+
+// ========== CONFIGURACIÓN DE AUTENTICACIÓN ==========
+let JWT_SECRET = null;
 const JWT_EXPIRES_IN = '24h'; // Token válido por 24 horas
+
+async function loadSecrets() {
+    try {
+        // Inicializar Key Vault
+        await initializeKeyVault();
+        
+        // Cargar secretos
+        JWT_SECRET = await getSecret('JWT-SECRET');
+        
+        // Validar que JWT_SECRET esté configurado
+        if (!JWT_SECRET) {
+            console.error('❌ ERROR: JWT_SECRET no encontrado en Key Vault ni en variables de entorno');
+            console.error('Configura JWT-SECRET en Key Vault o JWT_SECRET en App Service');
+            process.exit(1);
+        }
+        
+        console.log('✅ Secretos cargados desde Key Vault');
+    } catch (err) {
+        console.error('❌ Error al cargar secretos:', err.message);
+        // Intentar fallback a variables de entorno
+        JWT_SECRET = process.env.JWT_SECRET;
+        if (!JWT_SECRET) {
+            console.error('❌ ERROR: No se pudo cargar JWT_SECRET');
+            process.exit(1);
+        }
+        console.log('⚠️ Usando variables de entorno como fallback');
+    }
+}
 
 // Middleware para verificar token JWT
 function authenticateToken(req, res, next) {
@@ -118,12 +193,12 @@ function requireRole(...allowedRoles) {
     };
 }
 
-// Configuración de SQL Server - Todas las credenciales desde variables de entorno
-const sqlConfig = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME,
+// Configuración de SQL Server (se cargará desde Key Vault)
+let sqlConfig = {
+    user: null,
+    password: null,
+    server: null,
+    database: null,
     options: {
         encrypt: true, // Azure requiere encriptación
         trustServerCertificate: false,
@@ -136,18 +211,29 @@ const sqlConfig = {
     }
 };
 
-// Validar que todas las variables de entorno estén configuradas
-if (!sqlConfig.user || !sqlConfig.password || !sqlConfig.server || !sqlConfig.database) {
-    console.error('❌ ERROR: Faltan variables de entorno de base de datos:');
-    console.error('   DB_USER:', sqlConfig.user ? '✓' : '✗ FALTA');
-    console.error('   DB_PASSWORD:', sqlConfig.password ? '✓' : '✗ FALTA');
-    console.error('   DB_SERVER:', sqlConfig.server ? '✓' : '✗ FALTA');
-    console.error('   DB_NAME:', sqlConfig.database ? '✓' : '✗ FALTA');
-    console.error('');
-    console.error('Configura estas variables en Azure App Service:');
-    console.error('   - Configuration → Application settings');
-    console.error('   - Agregar: DB_USER, DB_PASSWORD, DB_SERVER, DB_NAME');
-    process.exit(1);
+async function loadDatabaseConfig() {
+    try {
+        sqlConfig.user = await getSecret('DB-USER');
+        sqlConfig.password = await getSecret('DB-PASSWORD');
+        sqlConfig.server = await getSecret('DB-SERVER');
+        sqlConfig.database = await getSecret('DB-NAME');
+        
+        // Validar configuración de base de datos
+        if (!sqlConfig.user || !sqlConfig.password || !sqlConfig.server || !sqlConfig.database) {
+            console.error('❌ ERROR: Variables de base de datos no configuradas');
+            console.error('Configura estos secretos en Key Vault o variables de entorno:');
+            console.error('   DB-USER:', sqlConfig.user ? '✓' : '✗ FALTA');
+            console.error('   DB-PASSWORD:', sqlConfig.password ? '✓' : '✗ FALTA');
+            console.error('   DB-SERVER:', sqlConfig.server ? '✓' : '✗ FALTA');
+            console.error('   DB-NAME:', sqlConfig.database ? '✓' : '✗ FALTA');
+            process.exit(1);
+        }
+        
+        console.log('✅ Configuración de base de datos cargada');
+    } catch (err) {
+        console.error('❌ Error al cargar configuración de base de datos:', err.message);
+        process.exit(1);
+    }
 }
 
 // Pool de conexiones
@@ -1544,11 +1630,23 @@ app.put('/api/tareas/:id/activate', authenticateToken, requireRole('admin'), asy
 //     res.sendFile(path.join(__dirname, 'informe_completo.html'));
 // });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`📊 API disponible en http://localhost:${PORT}/api/registros`);
-});
+// ========== INICIALIZACIÓN Y ARRANQUE DEL SERVIDOR ==========
+// Inicializar secretos antes de iniciar el servidor
+(async () => {
+    await loadSecrets();
+    await loadDatabaseConfig();
+    
+    // Iniciar servidor después de cargar secretos
+    app.listen(PORT, () => {
+        console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+        console.log(`📡 API disponible en http://localhost:${PORT}/api/registros`);
+    });
+    
+    // Inicializar pool de conexiones después de un breve delay
+    setTimeout(async () => {
+        await getPool();
+    }, 1000);
+})();
 
 // Manejo de cierre graceful
 process.on('SIGINT', async () => {
