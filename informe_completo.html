@@ -1763,6 +1763,49 @@ async function saveEntry() {
     const projectId = projectInput?.dataset.id;
     const taskId = taskInput?.dataset.id;
     
+    // Validar que la persona, proyecto y tarea estén activos antes de guardar
+    let selectedPerson = null;
+    let selectedProject = null;
+    let selectedTask = null;
+    
+    // Buscar por ID si está disponible, sino por nombre
+    if (personId) {
+        selectedPerson = masterPersons.find(p => p.id && p.id.toString() === personId.toString());
+    }
+    if (!selectedPerson) {
+        selectedPerson = masterPersons.find(p => p.nombre === person);
+    }
+    
+    if (projectId) {
+        selectedProject = masterProjects.find(p => p.id && p.id.toString() === projectId.toString());
+    }
+    if (!selectedProject) {
+        selectedProject = masterProjects.find(p => p.nombre === project);
+    }
+    
+    if (taskId) {
+        selectedTask = masterTasks.find(t => t.id && t.id.toString() === taskId.toString());
+    }
+    if (!selectedTask) {
+        selectedTask = masterTasks.find(t => t.nombre === task);
+    }
+    
+    const inactiveItems = [];
+    if (selectedPerson && selectedPerson.activo === 0) {
+        inactiveItems.push(`Persona: "${person}"`);
+    }
+    if (selectedProject && selectedProject.activo === 0) {
+        inactiveItems.push(`Proyecto: "${project}"`);
+    }
+    if (selectedTask && selectedTask.activo === 0) {
+        inactiveItems.push(`Tarea: "${task}"`);
+    }
+    
+    if (inactiveItems.length > 0) {
+        alert(`⚠️ No se puede crear la asignación porque los siguientes elementos están dados de baja:\n\n${inactiveItems.join('\n')}\n\nPor favor, selecciona elementos activos.`);
+        return;
+    }
+    
     const entry = {
         phase: project, // Mantener nombre para compatibilidad
         phase_id: projectId ? parseInt(projectId) : null,

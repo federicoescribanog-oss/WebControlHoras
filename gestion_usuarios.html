@@ -617,7 +617,14 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || 'Error al guardar usuario');
+                    // Si el usuario ya existe (409), refrescar la lista para mostrarlo
+                    if (response.status === 409) {
+                        await loadUsers();
+                        showError(error.error || 'El usuario ya existe. La lista se ha actualizado.', true);
+                    } else {
+                        throw new Error(error.error || 'Error al guardar usuario');
+                    }
+                    return;
                 }
 
                 showSuccess(editingUserId ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente');
