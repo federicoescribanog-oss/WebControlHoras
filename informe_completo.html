@@ -176,6 +176,24 @@
         .add-master-row { display: flex; gap: 0.5rem; }
         .add-master-row input { flex: 1; }
         
+        /* Select con búsqueda integrada */
+        .searchable-select { position: relative; width: 100%; }
+        .searchable-select-input { width: 100%; padding: 0.5rem 2.5rem 0.5rem 0.75rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; cursor: pointer; }
+        .searchable-select-input:focus { outline: none; border-color: var(--accent); }
+        .searchable-select-arrow { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-secondary); transition: transform 0.2s; }
+        .searchable-select.open .searchable-select-arrow { transform: translateY(-50%) rotate(180deg); }
+        .searchable-select-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; margin-top: 0.25rem; max-height: 250px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .searchable-select.open .searchable-select-dropdown { display: block; }
+        .searchable-select-search { padding: 0.5rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-secondary); z-index: 10; }
+        .searchable-select-search input { width: 100%; padding: 0.4rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 0.85rem; }
+        .searchable-select-options { max-height: 200px; overflow-y: auto; }
+        .searchable-select-option { padding: 0.6rem 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+        .searchable-select-option:last-child { border-bottom: none; }
+        .searchable-select-option:hover { background: var(--bg-card); }
+        .searchable-select-option.selected { background: var(--accent)22; color: var(--accent); }
+        .searchable-select-option.hidden { display: none; }
+        .searchable-select-no-results { padding: 0.75rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem; }
+        
         .entry-form { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 1.5rem; }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
         .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
@@ -392,7 +410,16 @@
                             </svg>
                             Proyecto
                         </label>
-                        <select id="filterProject"><option value="">Todos</option></select>
+                        <div class="searchable-select" id="filterProjectSelect" style="min-width:200px;">
+                            <input type="text" class="searchable-select-input" id="filterProjectInput" placeholder="Todos" readonly>
+                            <span class="searchable-select-arrow">▼</span>
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-search">
+                                    <input type="text" placeholder="🔍 Buscar proyecto..." id="filterProjectSearch">
+                                </div>
+                                <div class="searchable-select-options" id="filterProjectOptions"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="filter-group">
                         <label>
@@ -401,7 +428,16 @@
                             </svg>
                             Tarea
                         </label>
-                        <select id="filterTask"><option value="">Todas</option></select>
+                        <div class="searchable-select" id="filterTaskSelect" style="min-width:200px;">
+                            <input type="text" class="searchable-select-input" id="filterTaskInput" placeholder="Todas" readonly>
+                            <span class="searchable-select-arrow">▼</span>
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-search">
+                                    <input type="text" placeholder="🔍 Buscar tarea..." id="filterTaskSearch">
+                                </div>
+                                <div class="searchable-select-options" id="filterTaskOptions"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="filter-group">
                         <label>
@@ -617,18 +653,42 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>Persona *</label>
-                                <input type="text" id="searchEntryPerson" class="search-select-input" placeholder="🔍 Buscar persona..." style="width:100%;margin-bottom:0.25rem;padding:0.4rem;font-size:0.85rem;">
-                                <select id="entryPerson"><option value="">Seleccionar...</option></select>
+                                <div class="searchable-select" id="entryPersonSelect">
+                                    <input type="text" class="searchable-select-input" id="entryPersonInput" placeholder="Seleccionar persona..." readonly>
+                                    <span class="searchable-select-arrow">▼</span>
+                                    <div class="searchable-select-dropdown">
+                                        <div class="searchable-select-search">
+                                            <input type="text" placeholder="🔍 Buscar persona..." id="entryPersonSearch">
+                                        </div>
+                                        <div class="searchable-select-options" id="entryPersonOptions"></div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Proyecto (Phase) *</label>
-                                <input type="text" id="searchEntryProject" class="search-select-input" placeholder="🔍 Buscar proyecto..." style="width:100%;margin-bottom:0.25rem;padding:0.4rem;font-size:0.85rem;">
-                                <select id="entryProject"><option value="">Seleccionar...</option></select>
+                                <div class="searchable-select" id="entryProjectSelect">
+                                    <input type="text" class="searchable-select-input" id="entryProjectInput" placeholder="Seleccionar proyecto..." readonly>
+                                    <span class="searchable-select-arrow">▼</span>
+                                    <div class="searchable-select-dropdown">
+                                        <div class="searchable-select-search">
+                                            <input type="text" placeholder="🔍 Buscar proyecto..." id="entryProjectSearch">
+                                        </div>
+                                        <div class="searchable-select-options" id="entryProjectOptions"></div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Tarea *</label>
-                                <input type="text" id="searchEntryTask" class="search-select-input" placeholder="🔍 Buscar tarea..." style="width:100%;margin-bottom:0.25rem;padding:0.4rem;font-size:0.85rem;">
-                                <select id="entryTask"><option value="">Seleccionar...</option></select>
+                                <div class="searchable-select" id="entryTaskSelect">
+                                    <input type="text" class="searchable-select-input" id="entryTaskInput" placeholder="Seleccionar tarea..." readonly>
+                                    <span class="searchable-select-arrow">▼</span>
+                                    <div class="searchable-select-dropdown">
+                                        <div class="searchable-select-search">
+                                            <input type="text" placeholder="🔍 Buscar tarea..." id="entryTaskSearch">
+                                        </div>
+                                        <div class="searchable-select-options" id="entryTaskOptions"></div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Fecha Inicio *</label>
@@ -1439,65 +1499,139 @@ async function activateMaster(type, value, id) {
     }
 }
 
+// ========== SEARCHABLE SELECT COMPONENT ==========
+function initSearchableSelect(selectId, inputId, searchId, optionsId, data, placeholder, allowEmpty = true, emptyText = '') {
+    const selectContainer = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    const searchInput = document.getElementById(searchId);
+    const optionsContainer = document.getElementById(optionsId);
+    
+    if (!selectContainer || !input || !searchInput || !optionsContainer) return;
+    
+    // Limpiar event listeners anteriores si existen
+    const newInput = input.cloneNode(true);
+    input.parentNode.replaceChild(newInput, input);
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    
+    // Obtener referencias actualizadas
+    const currentInput = document.getElementById(inputId);
+    const currentSearchInput = document.getElementById(searchId);
+    
+    // Renderizar opciones
+    function renderOptions(filterText = '') {
+        const filter = filterText.toLowerCase().trim();
+        const currentValue = currentInput.dataset.value || '';
+        const filtered = data.filter(item => 
+            !filter || item.nombre.toLowerCase().includes(filter)
+        );
+        
+        optionsContainer.innerHTML = '';
+        
+        if (allowEmpty && !filter) {
+            const emptyOption = document.createElement('div');
+            emptyOption.className = 'searchable-select-option' + (currentValue === '' ? ' selected' : '');
+            emptyOption.textContent = emptyText || placeholder;
+            emptyOption.dataset.value = '';
+            emptyOption.onclick = () => selectOption('');
+            optionsContainer.appendChild(emptyOption);
+        }
+        
+        filtered.forEach(item => {
+            const option = document.createElement('div');
+            option.className = 'searchable-select-option' + (currentValue === item.nombre ? ' selected' : '');
+            option.textContent = item.nombre;
+            option.dataset.value = item.nombre;
+            option.dataset.id = item.id;
+            option.onclick = () => selectOption(item.nombre, item.id);
+            optionsContainer.appendChild(option);
+        });
+        
+        if (filtered.length === 0) {
+            const noResults = document.createElement('div');
+            noResults.className = 'searchable-select-no-results';
+            noResults.textContent = 'No se encontraron resultados';
+            optionsContainer.appendChild(noResults);
+        }
+    }
+    
+    function selectOption(value, id = null) {
+        currentInput.value = value || '';
+        currentInput.dataset.value = value || '';
+        if (id) currentInput.dataset.id = id;
+        selectContainer.classList.remove('open');
+        currentSearchInput.value = '';
+        renderOptions();
+        
+        // Trigger change event
+        const event = new Event('change', { bubbles: true });
+        currentInput.dispatchEvent(event);
+    }
+    
+    // Event listeners
+    currentInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectContainer.classList.toggle('open');
+        if (selectContainer.classList.contains('open')) {
+            setTimeout(() => currentSearchInput.focus(), 10);
+        }
+    });
+    
+    currentSearchInput.addEventListener('input', (e) => {
+        renderOptions(e.target.value);
+    });
+    
+    currentSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            selectContainer.classList.remove('open');
+            currentSearchInput.value = '';
+            renderOptions();
+        }
+    });
+    
+    // Cerrar al hacer click fuera
+    const clickOutsideHandler = (e) => {
+        if (!selectContainer.contains(e.target)) {
+            selectContainer.classList.remove('open');
+        }
+    };
+    document.addEventListener('click', clickOutsideHandler);
+    
+    // Guardar handler para poder limpiarlo después si es necesario
+    selectContainer._clickOutsideHandler = clickOutsideHandler;
+    
+    // Renderizar inicialmente
+    renderOptions();
+}
+
 function populateSelects() {
-    const personSelect = document.getElementById('entryPerson');
-    const projectSelect = document.getElementById('entryProject');
-    const taskSelect = document.getElementById('entryTask');
-    const filterProject = document.getElementById('filterProject');
-    const filterTask = document.getElementById('filterTask');
-    
-    // Obtener filtros de búsqueda para selects
-    const searchEntryPerson = (document.getElementById('searchEntryPerson')?.value || '').toLowerCase().trim();
-    const searchEntryProject = (document.getElementById('searchEntryProject')?.value || '').toLowerCase().trim();
-    const searchEntryTask = (document.getElementById('searchEntryTask')?.value || '').toLowerCase().trim();
-    
-    // Usar objetos {id, nombre, activo} - Solo mostrar activos en los selects
-    let activePersons = masterPersons.filter(p => {
+    // Solo mostrar activos en los selects
+    const activePersons = masterPersons.filter(p => {
         const activo = p.activo === undefined || p.activo === null ? 1 : (p.activo === true || p.activo === 1 ? 1 : 0);
         return activo === 1;
     });
-    let activeProjects = masterProjects.filter(p => {
+    const activeProjects = masterProjects.filter(p => {
         const activo = p.activo === undefined || p.activo === null ? 1 : (p.activo === true || p.activo === 1 ? 1 : 0);
         return activo === 1;
     });
-    let activeTasks = masterTasks.filter(t => {
+    const activeTasks = masterTasks.filter(t => {
         const activo = t.activo === undefined || t.activo === null ? 1 : (t.activo === true || t.activo === 1 ? 1 : 0);
         return activo === 1;
     });
     
-    // Aplicar filtro de búsqueda
-    if (searchEntryPerson) {
-        activePersons = activePersons.filter(p => p.nombre.toLowerCase().includes(searchEntryPerson));
-    }
-    if (searchEntryProject) {
-        activeProjects = activeProjects.filter(p => p.nombre.toLowerCase().includes(searchEntryProject));
-    }
-    if (searchEntryTask) {
-        activeTasks = activeTasks.filter(t => t.nombre.toLowerCase().includes(searchEntryTask));
-    }
+    // Inicializar selects con búsqueda del formulario
+    initSearchableSelect('entryPersonSelect', 'entryPersonInput', 'entryPersonSearch', 'entryPersonOptions', 
+        activePersons, 'Seleccionar persona...', true, 'Seleccionar...');
+    initSearchableSelect('entryProjectSelect', 'entryProjectInput', 'entryProjectSearch', 'entryProjectOptions', 
+        activeProjects, 'Seleccionar proyecto...', true, 'Seleccionar...');
+    initSearchableSelect('entryTaskSelect', 'entryTaskInput', 'entryTaskSearch', 'entryTaskOptions', 
+        activeTasks, 'Seleccionar tarea...', true, 'Seleccionar...');
     
-    // Guardar valor seleccionado antes de actualizar
-    const selectedPerson = personSelect.value;
-    const selectedProject = projectSelect.value;
-    const selectedTask = taskSelect.value;
-    
-    personSelect.innerHTML = '<option value="">Seleccionar...</option>' + activePersons.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
-    projectSelect.innerHTML = '<option value="">Seleccionar...</option>' + activeProjects.map(p => `<option value="${p.nombre}" data-id="${p.id}">${p.nombre}</option>`).join('');
-    taskSelect.innerHTML = '<option value="">Seleccionar...</option>' + activeTasks.map(t => `<option value="${t.nombre}" data-id="${t.id}">${t.nombre}</option>`).join('');
-    
-    // Restaurar valor seleccionado si existe en las opciones filtradas
-    if (selectedPerson && activePersons.some(p => p.nombre === selectedPerson)) {
-        personSelect.value = selectedPerson;
-    }
-    if (selectedProject && activeProjects.some(p => p.nombre === selectedProject)) {
-        projectSelect.value = selectedProject;
-    }
-    if (selectedTask && activeTasks.some(t => t.nombre === selectedTask)) {
-        taskSelect.value = selectedTask;
-    }
-    
-    filterProject.innerHTML = '<option value="">Todos</option>' + activeProjects.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
-    filterTask.innerHTML = '<option value="">Todas</option>' + activeTasks.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
+    // Inicializar selects con búsqueda de filtros
+    initSearchableSelect('filterProjectSelect', 'filterProjectInput', 'filterProjectSearch', 'filterProjectOptions', 
+        activeProjects, 'Todos', true, 'Todos');
+    initSearchableSelect('filterTaskSelect', 'filterTaskInput', 'filterTaskSearch', 'filterTaskOptions', 
+        activeTasks, 'Todas', true, 'Todas');
 }
 
 // ========== ENTRIES TABLE WITH FILTERS ==========
@@ -1578,12 +1712,12 @@ function updateEntriesBody() {
 }
 
 async function saveEntry() {
-    const personSelect = document.getElementById('entryPerson');
-    const projectSelect = document.getElementById('entryProject');
-    const taskSelect = document.getElementById('entryTask');
-    const person = personSelect.value.trim();
-    const project = projectSelect.value.trim();
-    const task = taskSelect.value.trim();
+    const personInput = document.getElementById('entryPersonInput');
+    const projectInput = document.getElementById('entryProjectInput');
+    const taskInput = document.getElementById('entryTaskInput');
+    const person = (personInput?.dataset.value || '').trim();
+    const project = (projectInput?.dataset.value || '').trim();
+    const task = (taskInput?.dataset.value || '').trim();
     const start = document.getElementById('entryStart').value;
     const end = document.getElementById('entryEnd').value;
     const time = parseInt(document.getElementById('entryTime').value) || 8;
@@ -1593,10 +1727,10 @@ async function saveEntry() {
         return;
     }
     
-    // Obtener IDs de los selects
-    const personId = personSelect.options[personSelect.selectedIndex]?.dataset?.id;
-    const projectId = projectSelect.options[projectSelect.selectedIndex]?.dataset?.id;
-    const taskId = taskSelect.options[taskSelect.selectedIndex]?.dataset?.id;
+    // Obtener IDs de los inputs
+    const personId = personInput?.dataset.id;
+    const projectId = projectInput?.dataset.id;
+    const taskId = taskInput?.dataset.id;
     
     const entry = {
         phase: project, // Mantener nombre para compatibilidad
@@ -1686,16 +1820,41 @@ function editEntry(index) {
     const entry = jsonData[index];
     editingId = entry.id; // Usar ID de base de datos en lugar de índice
     
-    document.getElementById('entryPerson').value = entry.assignee || '';
-    document.getElementById('entryProject').value = entry.phase || '';
-    document.getElementById('entryTask').value = entry.task || '';
+    // Actualizar los nuevos inputs con búsqueda
+    const personInput = document.getElementById('entryPersonInput');
+    const projectInput = document.getElementById('entryProjectInput');
+    const taskInput = document.getElementById('entryTaskInput');
+    
+    if (personInput) {
+        personInput.value = entry.assignee || '';
+        personInput.dataset.value = entry.assignee || '';
+        // Buscar el ID de la persona
+        const person = masterPersons.find(p => p.nombre === entry.assignee);
+        if (person) personInput.dataset.id = person.id;
+    }
+    if (projectInput) {
+        projectInput.value = entry.phase || '';
+        projectInput.dataset.value = entry.phase || '';
+        const project = masterProjects.find(p => p.nombre === entry.phase);
+        if (project) projectInput.dataset.id = project.id;
+    }
+    if (taskInput) {
+        taskInput.value = entry.task || '';
+        taskInput.dataset.value = entry.task || '';
+        const task = masterTasks.find(t => t.nombre === entry.task);
+        if (task) taskInput.dataset.id = task.id;
+    }
+    
     document.getElementById('entryStart').value = formatDateToInput(entry.start);
     document.getElementById('entryEnd').value = formatDateToInput(entry.end);
     document.getElementById('entryTime').value = entry.time || 8;
     
     document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg> Editar Entrada';
     document.getElementById('cancelEditBtn').classList.remove('hidden');
-    document.getElementById('entryPerson').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (personInput) personInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Re-renderizar los selects para actualizar la selección
+    populateSelects();
 }
 
 async function deleteEntry(index) {
@@ -1734,15 +1893,36 @@ async function deleteEntry(index) {
 }
 
 function clearEntryForm() {
-    document.getElementById('entryPerson').value = '';
-    document.getElementById('entryProject').value = '';
-    document.getElementById('entryTask').value = '';
+    // Limpiar los nuevos inputs con búsqueda
+    const personInput = document.getElementById('entryPersonInput');
+    const projectInput = document.getElementById('entryProjectInput');
+    const taskInput = document.getElementById('entryTaskInput');
+    
+    if (personInput) {
+        personInput.value = '';
+        personInput.dataset.value = '';
+        personInput.dataset.id = '';
+    }
+    if (projectInput) {
+        projectInput.value = '';
+        projectInput.dataset.value = '';
+        projectInput.dataset.id = '';
+    }
+    if (taskInput) {
+        taskInput.value = '';
+        taskInput.dataset.value = '';
+        taskInput.dataset.id = '';
+    }
+    
     document.getElementById('entryStart').value = '';
     document.getElementById('entryEnd').value = '';
     document.getElementById('entryTime').value = 8;
     editingId = null; // Resetear ID de edición
     document.getElementById('formTitle').innerHTML = '<svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;vertical-align:middle;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Nueva Entrada';
     document.getElementById('cancelEditBtn').classList.add('hidden');
+    
+    // Re-renderizar los selects para actualizar
+    populateSelects();
 }
 
 function downloadJson() {
@@ -1803,8 +1983,10 @@ function getFilterDateRange() {
 }
 
 function getFilteredData() {
-    const project = document.getElementById('filterProject').value;
-    const task = document.getElementById('filterTask').value;
+    const projectInput = document.getElementById('filterProjectInput');
+    const taskInput = document.getElementById('filterTaskInput');
+    const project = projectInput?.dataset.value || '';
+    const task = taskInput?.dataset.value || '';
     const type = document.getElementById('filterType').value;
     const dateRange = getFilterDateRange();
 
@@ -2250,13 +2432,28 @@ document.getElementById('selectNoneBtn').addEventListener('click', () => {
     renderPersonSelector(); updateStats(); renderTable(); renderTimeline();
 });
 
-document.querySelectorAll('#filterProject, #filterTask, #filterType, #filterDateFrom, #filterDateTo').forEach(el => {
-    el.addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
-});
+// Event listeners para filtros
+document.getElementById('filterType').addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
+document.getElementById('filterDateFrom').addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
+document.getElementById('filterDateTo').addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
+
+// Event listeners para los nuevos selects con búsqueda de filtros
+document.getElementById('filterProjectInput')?.addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
+document.getElementById('filterTaskInput')?.addEventListener('change', () => { updateStats(); renderTable(); renderTimeline(); });
 
 document.getElementById('clearFilters').addEventListener('click', () => {
-    document.getElementById('filterProject').value = '';
-    document.getElementById('filterTask').value = '';
+    const filterProjectInput = document.getElementById('filterProjectInput');
+    const filterTaskInput = document.getElementById('filterTaskInput');
+    if (filterProjectInput) {
+        filterProjectInput.value = '';
+        filterProjectInput.dataset.value = '';
+        filterProjectInput.dataset.id = '';
+    }
+    if (filterTaskInput) {
+        filterTaskInput.value = '';
+        filterTaskInput.dataset.value = '';
+        filterTaskInput.dataset.id = '';
+    }
     document.getElementById('filterType').value = '';
     document.getElementById('filterDateFrom').value = '';
     document.getElementById('filterDateTo').value = '';
@@ -2278,11 +2475,6 @@ document.getElementById('newTaskInput').addEventListener('keypress', (e) => { if
 document.getElementById('searchPersonInput').addEventListener('input', () => renderMasterLists());
 document.getElementById('searchProjectInput').addEventListener('input', () => renderMasterLists());
 document.getElementById('searchTaskInput').addEventListener('input', () => renderMasterLists());
-
-// Event listeners para búsqueda en selects del formulario
-document.getElementById('searchEntryPerson').addEventListener('input', () => populateSelects());
-document.getElementById('searchEntryProject').addEventListener('input', () => populateSelects());
-document.getElementById('searchEntryTask').addEventListener('input', () => populateSelects());
 
 document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
 document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
