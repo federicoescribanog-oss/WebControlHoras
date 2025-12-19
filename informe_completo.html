@@ -2073,21 +2073,7 @@ function updateStats() {
     const personsCount = selectedPersons.size;
     const uniqueProjects = [...new Set(filtered.filter(d => d.task !== 'Vacaciones').map(d => d.phase))];
     
-    // Contar días de vacaciones, no registros
-    let vacDays = 0;
-    filtered.filter(d => d.task === 'Vacaciones').forEach(vac => {
-        const vacStart = parseDate(vac.start);
-        const vacEnd = parseDate(vac.end);
-        if (vacStart && vacEnd) {
-            const workingDays = getWorkingDays(vacStart, vacEnd);
-            vacDays += workingDays.length;
-        }
-    });
-    
-    const projectCount = filtered.filter(d => d.task !== 'Vacaciones').length;
-    
-    // Calcular sobrecarga usando el rango del timeline si no hay rango de fechas seleccionado
-    let overloadedDays = 0;
+    // Obtener el rango de fechas del filtro para contar vacaciones solo en ese rango
     let dateRange = getFilterDateRange();
     
     // Si no hay rango de fechas seleccionado, usar el rango del timeline actual
@@ -2095,6 +2081,41 @@ function updateStats() {
         const { start, end } = getViewRange();
         dateRange = { start, end };
     }
+    
+    // Contar días de vacaciones solo dentro del rango de fechas seleccionado
+    let vacDays = 0;
+    if (dateRange.start && dateRange.end) {
+        filtered.filter(d => d.task === 'Vacaciones').forEach(vac => {
+            const vacStart = parseDate(vac.start);
+            const vacEnd = parseDate(vac.end);
+            if (vacStart && vacEnd) {
+                // Calcular la intersección entre el período de vacaciones y el rango seleccionado
+                const intersectionStart = vacStart > dateRange.start ? vacStart : dateRange.start;
+                const intersectionEnd = vacEnd < dateRange.end ? vacEnd : dateRange.end;
+                
+                // Solo contar si hay intersección válida
+                if (intersectionStart <= intersectionEnd) {
+                    const workingDays = getWorkingDays(intersectionStart, intersectionEnd);
+                    vacDays += workingDays.length;
+                }
+            }
+        });
+    } else {
+        // Si no hay rango de fechas, contar todos los días de vacaciones de los datos filtrados
+        filtered.filter(d => d.task === 'Vacaciones').forEach(vac => {
+            const vacStart = parseDate(vac.start);
+            const vacEnd = parseDate(vac.end);
+            if (vacStart && vacEnd) {
+                const workingDays = getWorkingDays(vacStart, vacEnd);
+                vacDays += workingDays.length;
+            }
+        });
+    }
+    
+    const projectCount = filtered.filter(d => d.task !== 'Vacaciones').length;
+    
+    // Calcular sobrecarga usando el mismo rango de fechas que se usó para vacaciones
+    let overloadedDays = 0;
     
     if (dateRange.start && dateRange.end) {
         [...selectedPersons].forEach(person => {
