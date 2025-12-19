@@ -168,6 +168,12 @@ async function loadSecrets() {
 
 // Middleware para verificar token JWT
 function authenticateToken(req, res, next) {
+    // Verificar que JWT_SECRET esté configurado
+    if (!JWT_SECRET) {
+        console.error('❌ ERROR: JWT_SECRET no está configurado');
+        return res.status(500).json({ error: 'Error de configuración del servidor' });
+    }
+    
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
     
@@ -177,6 +183,7 @@ function authenticateToken(req, res, next) {
     
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
+            console.error('Error al verificar token:', err.message);
             return res.status(403).json({ error: 'Token inválido o expirado' });
         }
         req.user = user; // { id, usuario, rol }
@@ -465,6 +472,8 @@ function generateSecurePassword() {
 // POST /api/auth/change-password - Cambiar contraseña del usuario actual
 app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
     try {
+        console.log('🔐 Cambio de contraseña solicitado para usuario ID:', req.user.id);
+        
         const { currentPassword, newPassword } = req.body;
 
         if (!currentPassword || !newPassword) {
@@ -477,36 +486,82 @@ app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: passwordValidation.message });
         }
 
-        const pool = await getPool();
+        let pool;
+        try {
+            pool = await getPool();
+        } catch (err) {
+            console.error('❌ Error al obtener pool de conexiones:', err);
+            return res.status(500).json({ error: 'Error de conexión a la base de datos', details: err.message });
+        }
+
+        if (!pool) {
+            console.error('❌ Error: Pool de conexiones es null');
+            return res.status(500).json({ error: 'Error de conexión a la base de datos', details: 'Pool no inicializado' });
+        }
+
         const request = pool.request();
 
         // Obtener usuario actual con su contraseña
-        const userResult = await request
-            .input('id', sql.Int, req.user.id)
-            .query('SELECT password_hash FROM usuarios WHERE id = @id AND activo = 1');
+        let userResult;
+        try {
+            userResult = await request
+                .input('id', sql.Int, req.user.id)
+                .query('SELECT password_hash FROM usuarios WHERE id = @id AND activo = 1');
+        } catch (err) {
+            console.error('❌ Error al consultar usuario:', err);
+            return res.status(500).json({ error: 'Error al consultar usuario', details: err.message });
+        }
 
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
+        if (!userResult || !userResult.recordset || userResult.recordset.length === 0) {
+            console.error('❌ Usuario no encontrado o inactivo:', req.user.id);
+            return res.status(404).json({ error: 'Usuario no encontrado o inactivo' });
         }
 
         // Verificar contraseña actual
-        const passwordMatch = await bcrypt.compare(currentPassword, userResult.recordset[0].password_hash);
+        const passwordHash = userResult.recordset[0].password_hash;
+        if (!passwordHash) {
+            console.error('❌ Usuario sin password_hash:', req.user.id);
+            return res.status(500).json({ error: 'Error: Usuario sin contraseña configurada' });
+        }
+
+        let passwordMatch;
+        try {
+            passwordMatch = await bcrypt.compare(currentPassword, passwordHash);
+        } catch (err) {
+            console.error('❌ Error al comparar contraseña:', err);
+            return res.status(500).json({ error: 'Error al verificar contraseña', details: err.message });
+        }
+
         if (!passwordMatch) {
+            console.log('❌ Contraseña actual incorrecta para usuario:', req.user.id);
             return res.status(401).json({ error: 'Contraseña actual incorrecta' });
         }
 
         // Hash de nueva contraseña
-        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+        let newPasswordHash;
+        try {
+            newPasswordHash = await bcrypt.hash(newPassword, 10);
+        } catch (err) {
+            console.error('❌ Error al hashear nueva contraseña:', err);
+            return res.status(500).json({ error: 'Error al procesar nueva contraseña', details: err.message });
+        }
 
         // Actualizar contraseña
-        await request
-            .input('id', sql.Int, req.user.id)
-            .input('password_hash', sql.NVarChar(255), newPasswordHash)
-            .query('UPDATE usuarios SET password_hash = @password_hash WHERE id = @id');
+        try {
+            await request
+                .input('id', sql.Int, req.user.id)
+                .input('password_hash', sql.NVarChar(255), newPasswordHash)
+                .query('UPDATE usuarios SET password_hash = @password_hash WHERE id = @id');
+        } catch (err) {
+            console.error('❌ Error al actualizar contraseña:', err);
+            return res.status(500).json({ error: 'Error al actualizar contraseña en la base de datos', details: err.message });
+        }
 
+        console.log('✅ Contraseña cambiada correctamente para usuario:', req.user.id);
         res.json({ message: 'Contraseña cambiada correctamente' });
     } catch (err) {
-        console.error('Error al cambiar contraseña:', err);
+        console.error('❌ Error al cambiar contraseña:', err);
+        console.error('Stack:', err.stack);
         res.status(500).json({ error: 'Error al cambiar contraseña', details: err.message });
     }
 });

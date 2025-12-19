@@ -1025,7 +1025,18 @@ async function changePassword() {
         }
 
         if (!response.ok) {
-            throw new Error(data.error || 'Error al cambiar contraseña');
+            // Mostrar el mensaje de error del servidor si está disponible
+            let errorMessage = 'Error al cambiar contraseña';
+            if (data) {
+                if (data.error && data.details) {
+                    errorMessage = `${data.error}: ${data.details}`;
+                } else if (data.error) {
+                    errorMessage = data.error;
+                } else if (data.details) {
+                    errorMessage = data.details;
+                }
+            }
+            throw new Error(errorMessage);
         }
 
         alert('Contraseña cambiada correctamente');
