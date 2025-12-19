@@ -401,6 +401,7 @@
                             <button class="select-all-btn btn-secondary" id="selectAllBtn">Todas</button>
                             <button class="select-all-btn btn-secondary" id="selectNoneBtn">Ninguna</button>
                         </div>
+                        <input type="text" id="searchPersonSelector" class="search-master-input" placeholder="🔍 Buscar persona..." style="width:100%;margin-bottom:0.5rem;padding:0.4rem;font-size:0.85rem;">
                         <div class="person-selector" id="personSelector"></div>
                     </div>
                     <div class="filter-group">
@@ -1650,6 +1651,11 @@ function renderEntriesTable() {
     const thead = document.getElementById('entriesHead');
     const tbody = document.getElementById('entriesBody');
     
+    if (!thead || !tbody) {
+        console.error('No se encontraron elementos entriesHead o entriesBody');
+        return;
+    }
+    
     // Solo actualizar cabecera si no existe
     if (!thead.querySelector('input')) {
         thead.innerHTML = `
@@ -1680,7 +1686,15 @@ function renderEntriesTable() {
 
 function updateEntriesBody() {
     const tbody = document.getElementById('entriesBody');
+    if (!tbody) {
+        console.error('No se encontró el elemento entriesBody');
+        return;
+    }
+    
     const filtered = getFilteredEntries();
+    
+    // Debug: verificar datos
+    console.log('updateEntriesBody - jsonData length:', jsonData.length, 'filtered length:', filtered.length);
     
     tbody.innerHTML = filtered.length > 0 
         ? filtered.map((d) => {
@@ -1706,9 +1720,12 @@ function updateEntriesBody() {
                 </td>
             </tr>`;
         }).join('')
-        : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">Sin entradas</td></tr>';
+        : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">Sin entradas' + (jsonData.length === 0 ? ' - No hay datos cargados' : '') + '</td></tr>';
     
-    document.getElementById('entriesCount').textContent = `${filtered.length}/${jsonData.length} entradas`;
+    const entriesCountEl = document.getElementById('entriesCount');
+    if (entriesCountEl) {
+        entriesCountEl.textContent = `${filtered.length}/${jsonData.length} entradas`;
+    }
 }
 
 async function saveEntry() {
@@ -1939,10 +1956,21 @@ function downloadJson() {
 // ========== REPORTS ==========
 function renderPersonSelector() {
     const container = document.getElementById('personSelector');
+    const searchInput = document.getElementById('searchPersonSelector');
+    const searchText = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    
+    // Filtrar personas según búsqueda
+    let visiblePersons = masterPersons;
+    if (searchText) {
+        visiblePersons = masterPersons.filter(p => {
+            const personName = p.nombre || p;
+            return personName.toLowerCase().includes(searchText);
+        });
+    }
     
     // masterPersons ahora es array de objetos {id, nombre}
-    container.innerHTML = masterPersons.length > 0 
-        ? masterPersons.map(p => {
+    container.innerHTML = visiblePersons.length > 0 
+        ? visiblePersons.map(p => {
             const personName = p.nombre || p; // Compatibilidad: puede ser objeto o string
             const checked = selectedPersons.has(personName) ? 'checked' : '';
             const selectedClass = selectedPersons.has(personName) ? 'selected' : '';
@@ -1951,7 +1979,7 @@ function renderPersonSelector() {
                 <span class="person-name">${personName}</span>
             </div>`;
         }).join('')
-        : '<div style="padding:1rem;color:var(--text-secondary);text-align:center;">Sin personas</div>';
+        : '<div style="padding:1rem;color:var(--text-secondary);text-align:center;">Sin personas' + (searchText ? ' que coincidan con la búsqueda' : '') + '</div>';
     
     container.querySelectorAll('.person-item').forEach(item => {
         item.addEventListener('click', (e) => {
@@ -2475,6 +2503,9 @@ document.getElementById('newTaskInput').addEventListener('keypress', (e) => { if
 document.getElementById('searchPersonInput').addEventListener('input', () => renderMasterLists());
 document.getElementById('searchProjectInput').addEventListener('input', () => renderMasterLists());
 document.getElementById('searchTaskInput').addEventListener('input', () => renderMasterLists());
+
+// Event listener para búsqueda en selector de personas múltiple (informes)
+document.getElementById('searchPersonSelector').addEventListener('input', () => renderPersonSelector());
 
 document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
 document.getElementById('cancelEditBtn').addEventListener('click', clearEntryForm);
