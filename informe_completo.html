@@ -1109,6 +1109,20 @@ function refreshAll() {
     updateSASStatus();
 }
 
+// Función para refrescar TODO desde la BD (maestros + datos + UI)
+async function refreshAllFromDB() {
+    try {
+        // Recargar maestros desde la BD
+        await loadMasters();
+        // Recargar registros desde la BD
+        await loadFromAPI();
+        // refreshAll() ya se llama dentro de initializeApp() que se ejecuta en loadFromAPI()
+    } catch (err) {
+        console.error('Error al refrescar desde BD:', err);
+        alert(`❌ Error al refrescar datos: ${err.message}`);
+    }
+}
+
 function updateSASStatus() {
     const statusEl = document.getElementById('sasStatus');
     statusEl.textContent = '✓ Conectado a Base de Datos SQL Server';
@@ -1303,6 +1317,8 @@ async function addMaster(type) {
     input.value = '';
     refreshAll();
     } catch (err) {
+        // Si hay error, refrescar todo desde la BD para asegurar que los datos estén actualizados
+        await refreshAllFromDB();
         alert(`❌ Error al guardar: ${err.message}`);
         console.error('Error:', err);
     } finally {
@@ -1870,9 +1886,8 @@ async function saveEntry() {
         }
         
         if (inactiveItems.length > 0) {
-            // Recargar maestros para actualizar la lista
-            await loadMasters();
-            refreshAll();
+            // Recargar TODO desde la BD: maestros, registros, y refrescar toda la UI
+            await refreshAllFromDB();
             alert(`⚠️ No se puede crear la asignación porque los siguientes elementos están dados de baja:\n\n${inactiveItems.join('\n')}\n\nPor favor, selecciona elementos activos.`);
             saveBtn.textContent = originalText;
             saveBtn.disabled = false;
@@ -1957,6 +1972,8 @@ async function saveEntry() {
     selectedPersons = new Set(masterPersons);
     refreshAll();
     } catch (err) {
+        // Si hay error, refrescar todo desde la BD para asegurar que los datos estén actualizados
+        await refreshAllFromDB();
         alert(`❌ Error al guardar: ${err.message}`);
         console.error('Error:', err);
     } finally {
@@ -2692,11 +2709,9 @@ document.getElementById('clearFilters').addEventListener('click', () => {
 });
 
 
-document.getElementById('refreshDataBtn').addEventListener('click', loadFromAPI);
-document.getElementById('refreshEditorDataBtn').addEventListener('click', async () => {
-    await loadMasters();
-    await loadFromAPI();
-});
+// Ambos botones de refrescar deben refrescar TODO: maestros, registros, filtros, informes, etc.
+document.getElementById('refreshDataBtn').addEventListener('click', refreshAllFromDB);
+document.getElementById('refreshEditorDataBtn').addEventListener('click', refreshAllFromDB);
 
 document.getElementById('addPersonBtn').addEventListener('click', () => addMaster('person'));
 document.getElementById('addProjectBtn').addEventListener('click', () => addMaster('project'));
