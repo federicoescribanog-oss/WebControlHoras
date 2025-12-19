@@ -1028,8 +1028,11 @@ async function initializeApp(data) {
     // Cargar maestros desde la base de datos
     await loadMasters();
     
-    // Actualizar selectedPersons con los nombres
-    selectedPersons = new Set(masterPersons.map(p => p.nombre));
+    // NO inicializar selectedPersons con todas las personas - empezar vacío
+    // selectedPersons se inicializará vacío para que los KPIs muestren 0 al inicio
+    if (selectedPersons.size === 0) {
+        selectedPersons = new Set();
+    }
     
     // Inicializar currentDate al mes actual si no está inicializado
     if (!currentDate || isNaN(currentDate.getTime())) {
@@ -2055,15 +2058,43 @@ function getFilteredData() {
 }
 
 function updateStats() {
+    // Si no hay personas seleccionadas, todos los KPIs deben ser 0
+    if (selectedPersons.size === 0) {
+        document.getElementById('statPersons').textContent = 0;
+        document.getElementById('statProjects').textContent = 0;
+        document.getElementById('statVacations').textContent = 0;
+        document.getElementById('statAssignments').textContent = 0;
+        document.getElementById('statOverloaded').textContent = 0;
+        return;
+    }
+    
     const filtered = getFilteredData();
-    // El KPI de personas debe mostrar las personas seleccionadas, no las únicas en los datos filtrados
-    const personsCount = selectedPersons.size > 0 ? selectedPersons.size : masterPersons.length;
+    // El KPI de personas debe mostrar las personas seleccionadas
+    const personsCount = selectedPersons.size;
     const uniqueProjects = [...new Set(filtered.filter(d => d.task !== 'Vacaciones').map(d => d.phase))];
-    const vacCount = filtered.filter(d => d.task === 'Vacaciones').length;
+    
+    // Contar días de vacaciones, no registros
+    let vacDays = 0;
+    filtered.filter(d => d.task === 'Vacaciones').forEach(vac => {
+        const vacStart = parseDate(vac.start);
+        const vacEnd = parseDate(vac.end);
+        if (vacStart && vacEnd) {
+            const workingDays = getWorkingDays(vacStart, vacEnd);
+            vacDays += workingDays.length;
+        }
+    });
+    
     const projectCount = filtered.filter(d => d.task !== 'Vacaciones').length;
     
-    const dateRange = getFilterDateRange();
+    // Calcular sobrecarga usando el rango del timeline si no hay rango de fechas seleccionado
     let overloadedDays = 0;
+    let dateRange = getFilterDateRange();
+    
+    // Si no hay rango de fechas seleccionado, usar el rango del timeline actual
+    if (!dateRange.start || !dateRange.end) {
+        const { start, end } = getViewRange();
+        dateRange = { start, end };
+    }
     
     if (dateRange.start && dateRange.end) {
         [...selectedPersons].forEach(person => {
@@ -2074,7 +2105,7 @@ function updateStats() {
 
     document.getElementById('statPersons').textContent = personsCount;
     document.getElementById('statProjects').textContent = uniqueProjects.length;
-    document.getElementById('statVacations').textContent = vacCount;
+    document.getElementById('statVacations').textContent = vacDays;
     document.getElementById('statAssignments').textContent = projectCount;
     document.getElementById('statOverloaded').textContent = overloadedDays;
 }
