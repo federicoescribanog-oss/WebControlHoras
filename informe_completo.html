@@ -722,7 +722,15 @@
                                 </svg>
                                 Entradas de la Base de Datos
                             </h2>
+                            <div style="display:flex;align-items:center;gap:1rem;">
                             <span style="color:var(--text-secondary);font-size:0.85rem;" id="entriesCount">0 entradas</span>
+                                <button id="refreshEditorDataBtn" class="btn-success" style="padding:0.4rem 0.8rem;font-size:0.85rem;">
+                                    <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;vertical-align:middle;">
+                                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                    </svg>
+                                    Refrescar
+                                </button>
+                            </div>
                         </div>
                         <div class="section-content entries-table-wrapper">
                             <table class="entries-table">
@@ -1763,47 +1771,81 @@ async function saveEntry() {
     const projectId = projectInput?.dataset.id;
     const taskId = taskInput?.dataset.id;
     
-    // Validar que la persona, proyecto y tarea estén activos antes de guardar
-    let selectedPerson = null;
-    let selectedProject = null;
-    let selectedTask = null;
+    // Obtener referencias al botón antes de la validación
+    const saveBtn = document.getElementById('saveEntryBtn');
+    const originalText = saveBtn.textContent;
     
-    // Buscar por ID si está disponible, sino por nombre
-    if (personId) {
-        selectedPerson = masterPersons.find(p => p.id && p.id.toString() === personId.toString());
-    }
-    if (!selectedPerson) {
-        selectedPerson = masterPersons.find(p => p.nombre === person);
-    }
+    // Validar que la persona, proyecto y tarea estén activos en la BD antes de guardar
+    // Esto es importante porque otro usuario puede haber dado de baja un elemento mientras este usuario está trabajando
+    saveBtn.textContent = '⏳ Verificando...';
+    saveBtn.disabled = true;
     
-    if (projectId) {
-        selectedProject = masterProjects.find(p => p.id && p.id.toString() === projectId.toString());
-    }
-    if (!selectedProject) {
-        selectedProject = masterProjects.find(p => p.nombre === project);
-    }
-    
-    if (taskId) {
-        selectedTask = masterTasks.find(t => t.id && t.id.toString() === taskId.toString());
-    }
-    if (!selectedTask) {
-        selectedTask = masterTasks.find(t => t.nombre === task);
-    }
-    
-    const inactiveItems = [];
-    if (selectedPerson && selectedPerson.activo === 0) {
-        inactiveItems.push(`Persona: "${person}"`);
-    }
-    if (selectedProject && selectedProject.activo === 0) {
-        inactiveItems.push(`Proyecto: "${project}"`);
-    }
-    if (selectedTask && selectedTask.activo === 0) {
-        inactiveItems.push(`Tarea: "${task}"`);
-    }
-    
-    if (inactiveItems.length > 0) {
-        alert(`⚠️ No se puede crear la asignación porque los siguientes elementos están dados de baja:\n\n${inactiveItems.join('\n')}\n\nPor favor, selecciona elementos activos.`);
-        return;
+    try {
+        const inactiveItems = [];
+        
+        // Verificar persona en la BD
+        if (personId) {
+            try {
+                const personResponse = await fetch(`${API_PERSONAS_URL}/${personId}`, {
+                    headers: getAuthHeaders()
+                });
+                if (personResponse.ok) {
+                    const personData = await personResponse.json();
+                    if (personData.activo === 0 || personData.activo === false) {
+                        inactiveItems.push(`Persona: "${person}"`);
+                    }
+                }
+            } catch (err) {
+                console.error('Error al verificar persona:', err);
+            }
+        }
+        
+        // Verificar proyecto en la BD
+        if (projectId) {
+            try {
+                const projectResponse = await fetch(`${API_PROYECTOS_URL}/${projectId}`, {
+                    headers: getAuthHeaders()
+                });
+                if (projectResponse.ok) {
+                    const projectData = await projectResponse.json();
+                    if (projectData.activo === 0 || projectData.activo === false) {
+                        inactiveItems.push(`Proyecto: "${project}"`);
+                    }
+                }
+            } catch (err) {
+                console.error('Error al verificar proyecto:', err);
+            }
+        }
+        
+        // Verificar tarea en la BD
+        if (taskId) {
+            try {
+                const taskResponse = await fetch(`${API_TAREAS_URL}/${taskId}`, {
+                    headers: getAuthHeaders()
+                });
+                if (taskResponse.ok) {
+                    const taskData = await taskResponse.json();
+                    if (taskData.activo === 0 || taskData.activo === false) {
+                        inactiveItems.push(`Tarea: "${task}"`);
+                    }
+                }
+            } catch (err) {
+                console.error('Error al verificar tarea:', err);
+            }
+        }
+        
+        if (inactiveItems.length > 0) {
+            // Recargar maestros para actualizar la lista
+            await loadMasters();
+            refreshAll();
+            alert(`⚠️ No se puede crear la asignación porque los siguientes elementos están dados de baja:\n\n${inactiveItems.join('\n')}\n\nPor favor, selecciona elementos activos.`);
+            saveBtn.textContent = originalText;
+            saveBtn.disabled = false;
+            return;
+        }
+    } catch (err) {
+        console.error('Error al verificar elementos activos:', err);
+        // Continuar con el guardado si hay error en la verificación
     }
     
     const entry = {
@@ -1821,10 +1863,8 @@ async function saveEntry() {
         time: time
     };
     
-    const saveBtn = document.getElementById('saveEntryBtn');
-    const originalText = saveBtn.textContent;
+    // Continuar con el guardado (saveBtn y originalText ya están declarados arriba)
     saveBtn.textContent = '⏳ Guardando...';
-    saveBtn.disabled = true;
     
     try {
         if (editingId) {
@@ -2618,6 +2658,10 @@ document.getElementById('clearFilters').addEventListener('click', () => {
 
 
 document.getElementById('refreshDataBtn').addEventListener('click', loadFromAPI);
+document.getElementById('refreshEditorDataBtn').addEventListener('click', async () => {
+    await loadMasters();
+    await loadFromAPI();
+});
 
 document.getElementById('addPersonBtn').addEventListener('click', () => addMaster('person'));
 document.getElementById('addProjectBtn').addEventListener('click', () => addMaster('project'));
