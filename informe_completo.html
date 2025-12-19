@@ -1128,8 +1128,6 @@ async function addMaster(type) {
 }
 
 async function deleteMaster(type, value) {
-    if (!confirm(`¿Eliminar "${value}"?`)) return;
-    
     // Verificar permisos (solo admin y gestor pueden eliminar)
     const userRole = getUserRole();
     if (userRole !== 'admin' && userRole !== 'gestor') {
@@ -1140,6 +1138,7 @@ async function deleteMaster(type, value) {
     // Buscar el ID del elemento a eliminar
     let itemId = null;
     let apiUrl = null;
+    let typeName = '';
     
     if (type === 'person') {
         const item = masterPersons.find(p => p.nombre === value);
@@ -1149,6 +1148,7 @@ async function deleteMaster(type, value) {
         }
         itemId = item.id;
         apiUrl = `${API_PERSONAS_URL}/${itemId}`;
+        typeName = 'persona';
     } else if (type === 'project') {
         const item = masterProjects.find(p => p.nombre === value);
         if (!item) {
@@ -1157,6 +1157,7 @@ async function deleteMaster(type, value) {
         }
         itemId = item.id;
         apiUrl = `${API_PROYECTOS_URL}/${itemId}`;
+        typeName = 'proyecto';
     } else if (type === 'task') {
         const item = masterTasks.find(t => t.nombre === value);
         if (!item) {
@@ -1165,6 +1166,7 @@ async function deleteMaster(type, value) {
         }
         itemId = item.id;
         apiUrl = `${API_TAREAS_URL}/${itemId}`;
+        typeName = 'tarea';
     }
     
     if (!apiUrl || !itemId) {
@@ -1172,8 +1174,12 @@ async function deleteMaster(type, value) {
         return;
     }
     
+    // Primera confirmación
+    if (!confirm(`¿Eliminar "${value}"?`)) return;
+    
     try {
-        const response = await fetch(apiUrl, {
+        // Intentar eliminar sin cascade primero
+        let response = await fetch(apiUrl, {
             method: 'DELETE',
             headers: getAuthHeaders()
         });
@@ -1183,23 +1189,56 @@ async function deleteMaster(type, value) {
             return;
         }
         
-        if (!response.ok) {
+        // Si hay registros asociados, el backend devuelve 409
+        if (response.status === 409) {
+            const errorData = await response.json();
+            const count = errorData.count || 0;
+            
+            // Pedir confirmación para eliminar también los registros asociados
+            const confirmMessage = `Esta ${typeName} tiene ${count} registro(s) asociado(s).\n\n` +
+                `¿Deseas eliminar también todos los registros asociados?\n\n` +
+                `Se marcarán como inactivos:\n` +
+                `- La ${typeName} "${value}"\n` +
+                `- Los ${count} registro(s) asociado(s)`;
+            
+            if (confirm(confirmMessage)) {
+                // Reintentar con cascade=true
+                response = await fetch(`${apiUrl}?cascade=true`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.status === 401 || response.status === 403) {
+                    logout();
+                    return;
+                }
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Error al eliminar con registros asociados');
+                }
+                
+                const result = await response.json();
+                alert(`✅ ${result.message || `La ${typeName} y ${count} registro(s) fueron eliminados correctamente`}`);
+            } else {
+                // Usuario canceló, no hacer nada
+                return;
+            }
+        } else if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al eliminar');
-        }
-        
-        // Eliminar del array local
-        if (type === 'person') {
-            masterPersons = masterPersons.filter(p => p.nombre !== value);
-            selectedPersons.delete(value);
-        } else if (type === 'project') {
-            masterProjects = masterProjects.filter(p => p.nombre !== value);
-        } else if (type === 'task') {
-            masterTasks = masterTasks.filter(t => t.nombre !== value);
+        } else {
+            // Eliminación exitosa sin registros asociados
+            const result = await response.json();
+            if (result.message) {
+                alert(`✅ ${result.message}`);
+            }
         }
         
         // Recargar maestros desde la BD para asegurar sincronización
         await loadMasters();
+        // Recargar registros para reflejar los cambios
+        await loadFromAPI();
         refreshAll();
     } catch (err) {
         alert(`❌ Error al eliminar: ${err.message}`);

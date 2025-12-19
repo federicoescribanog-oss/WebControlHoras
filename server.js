@@ -619,6 +619,7 @@ app.get('/api/registros', authenticateToken, async (req, res) => {
             LEFT JOIN proyectos p ON c.phase_id = p.id
             LEFT JOIN tareas t ON c.task_id = t.id
             LEFT JOIN personas per ON c.assignee_id = per.id
+            WHERE c.activo = 1
             ORDER BY c.id DESC
         `);
         
@@ -864,9 +865,10 @@ app.delete('/api/registros/:id', authenticateToken, requireRole('admin', 'gestor
         const { id } = req.params;
         
         const pool = await getPool();
+        // Soft delete: marcar como inactivo
         const result = await pool.request()
             .input('id', sql.Int, id)
-            .query('DELETE FROM controlhorario WHERE id = @id');
+            .query('UPDATE controlhorario SET activo = 0 WHERE id = @id');
         
         if (result.rowsAffected[0] === 0) {
             return res.status(404).json({ error: 'Registro no encontrado' });
@@ -1062,24 +1064,36 @@ app.post('/api/tareas', authenticateToken, requireRole('admin', 'gestor'), async
 });
 
 // DELETE /api/personas/:id - Eliminar persona (admin y gestor)
+// Query param: ?cascade=true para eliminar también los registros asociados
 app.delete('/api/personas/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { id } = req.params;
+        const cascade = req.query.cascade === 'true';
         const pool = await getPool();
         
-        // Verificar si hay registros que usan esta persona
+        // Verificar si hay registros que usan esta persona (solo activos)
         const checkUsage = await pool.request()
             .input('persona_id', sql.Int, id)
-            .query('SELECT COUNT(*) as count FROM controlhorario WHERE assignee_id = @persona_id');
+            .query('SELECT COUNT(*) as count FROM controlhorario WHERE assignee_id = @persona_id AND activo = 1');
         
-        if (checkUsage.recordset[0].count > 0) {
+        const count = checkUsage.recordset[0].count;
+        
+        if (count > 0 && !cascade) {
             return res.status(409).json({ 
                 error: 'No se puede eliminar esta persona porque tiene registros asociados',
-                count: checkUsage.recordset[0].count
+                count: count,
+                requiresCascade: true
             });
         }
         
-        // Marcar como inactivo en lugar de eliminar (soft delete)
+        // Si hay registros y se solicita cascade, marcarlos como inactivos
+        if (count > 0 && cascade) {
+            await pool.request()
+                .input('persona_id', sql.Int, id)
+                .query('UPDATE controlhorario SET activo = 0 WHERE assignee_id = @persona_id AND activo = 1');
+        }
+        
+        // Marcar persona como inactiva (soft delete)
         const result = await pool.request()
             .input('id', sql.Int, id)
             .query('UPDATE personas SET activo = 0 WHERE id = @id');
@@ -1088,7 +1102,12 @@ app.delete('/api/personas/:id', authenticateToken, requireRole('admin', 'gestor'
             return res.status(404).json({ error: 'Persona no encontrada' });
         }
         
-        res.json({ message: 'Persona eliminada correctamente' });
+        res.json({ 
+            message: cascade && count > 0 
+                ? `Persona y ${count} registro(s) asociado(s) eliminados correctamente`
+                : 'Persona eliminada correctamente',
+            recordsDeleted: cascade ? count : 0
+        });
     } catch (err) {
         console.error('Error al eliminar persona:', err);
         res.status(500).json({ error: 'Error al eliminar persona', details: err.message });
@@ -1096,24 +1115,36 @@ app.delete('/api/personas/:id', authenticateToken, requireRole('admin', 'gestor'
 });
 
 // DELETE /api/proyectos/:id - Eliminar proyecto (admin y gestor)
+// Query param: ?cascade=true para eliminar también los registros asociados
 app.delete('/api/proyectos/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { id } = req.params;
+        const cascade = req.query.cascade === 'true';
         const pool = await getPool();
         
-        // Verificar si hay registros que usan este proyecto
+        // Verificar si hay registros que usan este proyecto (solo activos)
         const checkUsage = await pool.request()
             .input('proyecto_id', sql.Int, id)
-            .query('SELECT COUNT(*) as count FROM controlhorario WHERE phase_id = @proyecto_id');
+            .query('SELECT COUNT(*) as count FROM controlhorario WHERE phase_id = @proyecto_id AND activo = 1');
         
-        if (checkUsage.recordset[0].count > 0) {
+        const count = checkUsage.recordset[0].count;
+        
+        if (count > 0 && !cascade) {
             return res.status(409).json({ 
                 error: 'No se puede eliminar este proyecto porque tiene registros asociados',
-                count: checkUsage.recordset[0].count
+                count: count,
+                requiresCascade: true
             });
         }
         
-        // Marcar como inactivo en lugar de eliminar (soft delete)
+        // Si hay registros y se solicita cascade, marcarlos como inactivos
+        if (count > 0 && cascade) {
+            await pool.request()
+                .input('proyecto_id', sql.Int, id)
+                .query('UPDATE controlhorario SET activo = 0 WHERE phase_id = @proyecto_id AND activo = 1');
+        }
+        
+        // Marcar proyecto como inactivo (soft delete)
         const result = await pool.request()
             .input('id', sql.Int, id)
             .query('UPDATE proyectos SET activo = 0 WHERE id = @id');
@@ -1122,7 +1153,12 @@ app.delete('/api/proyectos/:id', authenticateToken, requireRole('admin', 'gestor
             return res.status(404).json({ error: 'Proyecto no encontrado' });
         }
         
-        res.json({ message: 'Proyecto eliminado correctamente' });
+        res.json({ 
+            message: cascade && count > 0 
+                ? `Proyecto y ${count} registro(s) asociado(s) eliminados correctamente`
+                : 'Proyecto eliminado correctamente',
+            recordsDeleted: cascade ? count : 0
+        });
     } catch (err) {
         console.error('Error al eliminar proyecto:', err);
         res.status(500).json({ error: 'Error al eliminar proyecto', details: err.message });
@@ -1130,24 +1166,36 @@ app.delete('/api/proyectos/:id', authenticateToken, requireRole('admin', 'gestor
 });
 
 // DELETE /api/tareas/:id - Eliminar tarea (admin y gestor)
+// Query param: ?cascade=true para eliminar también los registros asociados
 app.delete('/api/tareas/:id', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
         const { id } = req.params;
+        const cascade = req.query.cascade === 'true';
         const pool = await getPool();
         
-        // Verificar si hay registros que usan esta tarea
+        // Verificar si hay registros que usan esta tarea (solo activos)
         const checkUsage = await pool.request()
             .input('tarea_id', sql.Int, id)
-            .query('SELECT COUNT(*) as count FROM controlhorario WHERE task_id = @tarea_id');
+            .query('SELECT COUNT(*) as count FROM controlhorario WHERE task_id = @tarea_id AND activo = 1');
         
-        if (checkUsage.recordset[0].count > 0) {
+        const count = checkUsage.recordset[0].count;
+        
+        if (count > 0 && !cascade) {
             return res.status(409).json({ 
                 error: 'No se puede eliminar esta tarea porque tiene registros asociados',
-                count: checkUsage.recordset[0].count
+                count: count,
+                requiresCascade: true
             });
         }
         
-        // Marcar como inactivo en lugar de eliminar (soft delete)
+        // Si hay registros y se solicita cascade, marcarlos como inactivos
+        if (count > 0 && cascade) {
+            await pool.request()
+                .input('tarea_id', sql.Int, id)
+                .query('UPDATE controlhorario SET activo = 0 WHERE task_id = @tarea_id AND activo = 1');
+        }
+        
+        // Marcar tarea como inactiva (soft delete)
         const result = await pool.request()
             .input('id', sql.Int, id)
             .query('UPDATE tareas SET activo = 0 WHERE id = @id');
@@ -1156,7 +1204,12 @@ app.delete('/api/tareas/:id', authenticateToken, requireRole('admin', 'gestor'),
             return res.status(404).json({ error: 'Tarea no encontrada' });
         }
         
-        res.json({ message: 'Tarea eliminada correctamente' });
+        res.json({ 
+            message: cascade && count > 0 
+                ? `Tarea y ${count} registro(s) asociado(s) eliminados correctamente`
+                : 'Tarea eliminada correctamente',
+            recordsDeleted: cascade ? count : 0
+        });
     } catch (err) {
         console.error('Error al eliminar tarea:', err);
         res.status(500).json({ error: 'Error al eliminar tarea', details: err.message });
