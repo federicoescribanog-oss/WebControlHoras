@@ -354,6 +354,114 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// POST /api/auth/reset-password - Restablecer contraseña
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { usuario } = req.body;
+
+        if (!usuario) {
+            return res.status(400).json({ error: 'Usuario requerido' });
+        }
+
+        // Validar que sea un email del dominio correcto
+        if (!usuario.endsWith('@es.logicalis.com')) {
+            return res.status(400).json({ error: 'El usuario debe ser un email del dominio @es.logicalis.com' });
+        }
+
+        const pool = await getPool();
+        const request = pool.request();
+
+        // Buscar usuario
+        const result = await request
+            .input('usuario', sql.NVarChar(255), usuario)
+            .query(`
+                SELECT u.id, u.usuario, u.rol_id, r.nombre as rol_nombre
+                FROM usuarios u
+                LEFT JOIN roles r ON u.rol_id = r.id
+                WHERE u.usuario = @usuario AND u.activo = 1
+            `);
+
+        if (result.recordset.length === 0) {
+            // Por seguridad, no revelar si el usuario existe o no
+            return res.json({ 
+                message: 'Si el usuario existe, se ha enviado una nueva contraseña a tu email' 
+            });
+        }
+
+        // Generar nueva contraseña
+        const newPassword = generateSecurePassword();
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+
+        // Actualizar contraseña
+        await request
+            .input('usuario', sql.NVarChar(255), usuario)
+            .input('password_hash', sql.NVarChar(255), passwordHash)
+            .query(`
+                UPDATE usuarios 
+                SET password_hash = @password_hash
+                WHERE usuario = @usuario
+            `);
+
+        // TODO: Aquí deberías enviar la contraseña por email
+        // Por ahora, la devolvemos en la respuesta (solo para desarrollo/testing)
+        // En producción, esto debería enviarse por email
+        console.log(`⚠️ NUEVA CONTRASEÑA para ${usuario}: ${newPassword}`);
+        console.log('⚠️ IMPORTANTE: En producción, esto debe enviarse por email, no mostrarse en logs');
+
+        res.json({ 
+            message: 'Se ha generado una nueva contraseña. Por favor, revisa tu email.',
+            // En producción, eliminar esta línea:
+            password: newPassword // Solo para desarrollo/testing
+        });
+
+    } catch (err) {
+        console.error('Error al restablecer contraseña:', err);
+        res.status(500).json({ error: 'Error al restablecer contraseña', details: err.message });
+    }
+});
+
+// Función para validar contraseña
+function validatePassword(password) {
+    if (password.length < 10) {
+        return { valid: false, message: 'La contraseña debe tener al menos 10 caracteres' };
+    }
+    if (!/[A-Z]/.test(password)) {
+        return { valid: false, message: 'La contraseña debe contener al menos una mayúscula' };
+    }
+    if (!/[0-9]/.test(password)) {
+        return { valid: false, message: 'La contraseña debe contener al menos un número' };
+    }
+    if (!/[!@#$%^&*]/.test(password)) {
+        return { valid: false, message: 'La contraseña debe contener al menos un carácter especial (!@#$%^&*)' };
+    }
+    return { valid: true };
+}
+
+// Función para generar contraseña segura
+function generateSecurePassword() {
+    const length = 12;
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*';
+    const all = uppercase + lowercase + numbers + special;
+    
+    let password = '';
+    // Asegurar al menos un carácter de cada tipo
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += special[Math.floor(Math.random() * special.length)];
+    
+    // Completar hasta la longitud deseada
+    for (let i = password.length; i < length; i++) {
+        password += all[Math.floor(Math.random() * all.length)];
+    }
+    
+    // Mezclar la contraseña
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
 // GET /api/auth/verify - Verificar token
 app.get('/api/auth/verify', authenticateToken, (req, res) => {
     res.json({
@@ -445,6 +553,12 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
         // Validar dominio @es.logicalis.com
         if (!usuario.endsWith('@es.logicalis.com')) {
             return res.status(400).json({ error: 'El usuario debe ser del dominio @es.logicalis.com' });
+        }
+
+        // Validar contraseña
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({ error: passwordValidation.message });
         }
         
         // Obtener rol_id si se envió nombre del rol (compatibilidad)
@@ -595,7 +709,13 @@ app.put('/api/usuarios/:id', authenticateToken, requireRole('admin'), async (req
             request.input('usuario', sql.NVarChar(100), usuario);
         }
         
-        if (password !== undefined) {
+        if (password !== undefined && password !== '') {
+            // Validar contraseña
+            const passwordValidation = validatePassword(password);
+            if (!passwordValidation.valid) {
+                return res.status(400).json({ error: passwordValidation.message });
+            }
+            
             const passwordHash = await bcrypt.hash(password, 10);
             updateFields.push('password_hash = @password_hash');
             request.input('password_hash', sql.NVarChar(255), passwordHash);

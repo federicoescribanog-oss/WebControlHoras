@@ -260,6 +260,86 @@
             border-color: var(--accent);
         }
 
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-primary);
+        }
+
+        .password-toggle svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .password-wrapper input {
+            padding-right: 3rem;
+        }
+
+        .password-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn-generate {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn-generate:hover {
+            background: var(--bg-secondary);
+        }
+
+        .password-requirements {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-card);
+            border-radius: 4px;
+        }
+
+        .password-requirements ul {
+            margin: 0.25rem 0 0 1.25rem;
+            padding: 0;
+        }
+
+        .password-requirements li {
+            margin: 0.25rem 0;
+        }
+
+        .password-requirements li.valid {
+            color: var(--success);
+        }
+
+        .password-requirements li.invalid {
+            color: var(--error);
+        }
+
         .form-actions {
             display: flex;
             gap: 1rem;
@@ -387,8 +467,28 @@
 
                 <div class="form-group">
                     <label for="password">Contraseña *</label>
-                    <input type="password" id="password" name="password" required>
-                    <small style="color: var(--text-secondary); font-size: 0.8rem;">Dejar vacío para no cambiar (solo en edición)</small>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" required>
+                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Mostrar contraseña">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="password-actions" id="passwordActions" style="display: none;">
+                        <button type="button" class="btn-generate" id="generatePassword">Generar Contraseña</button>
+                    </div>
+                    <div class="password-requirements" id="passwordRequirements">
+                        <strong>Requisitos de contraseña:</strong>
+                        <ul>
+                            <li id="req-length" class="invalid">Mínimo 10 caracteres</li>
+                            <li id="req-uppercase" class="invalid">Al menos una mayúscula</li>
+                            <li id="req-number" class="invalid">Al menos un número</li>
+                            <li id="req-special" class="invalid">Al menos un carácter especial (!@#$%^&*)</li>
+                        </ul>
+                    </div>
+                    <small style="color: var(--text-secondary); font-size: 0.8rem; display: block; margin-top: 0.5rem;">Dejar vacío para no cambiar (solo en edición)</small>
                 </div>
 
                 <div class="form-group">
@@ -524,6 +624,11 @@
             document.getElementById('modalTitle').textContent = 'Editar Usuario';
             document.getElementById('activoGroup').style.display = 'block';
             document.getElementById('password').required = false;
+            document.getElementById('passwordActions').style.display = 'none';
+            document.getElementById('passwordRequirements').style.display = 'block';
+            document.getElementById('password').type = 'password';
+            document.getElementById('password').value = '';
+            updatePasswordRequirements();
 
             // Cargar datos del usuario
             fetch(`${API_USERS_URL}/${id}`, {
@@ -535,7 +640,6 @@
                 document.getElementById('usuario').value = user.usuario;
                 document.getElementById('rol').value = user.rol;
                 document.getElementById('activo').checked = user.activo;
-                document.getElementById('password').value = '';
                 document.getElementById('userModal').classList.add('show');
             })
             .catch(err => {
@@ -584,6 +688,15 @@
             if (!editingUserId && !password) {
                 showError('La contraseña es obligatoria para nuevos usuarios', true);
                 return;
+            }
+
+            // Validar contraseña si se proporciona
+            if (password) {
+                const passwordValidation = validatePassword(password);
+                if (!passwordValidation.valid) {
+                    showError(passwordValidation.message, true);
+                    return;
+                }
             }
 
             const data = { usuario, rol };
