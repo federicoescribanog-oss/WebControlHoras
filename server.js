@@ -1298,8 +1298,13 @@ app.put('/api/personas/:id/activate', authenticateToken, requireRole('admin'), a
             
             const maestros = checkMaestros.recordset[0];
             
+            // Normalizar valores BIT de SQL Server (pueden venir como boolean o número)
+            const personaActiva = maestros.persona_activa === true || maestros.persona_activa === 1 || maestros.persona_activa === '1';
+            const proyectoActivo = maestros.proyecto_activo === true || maestros.proyecto_activo === 1 || maestros.proyecto_activo === '1';
+            const tareaActiva = maestros.tarea_activa === true || maestros.tarea_activa === 1 || maestros.tarea_activa === '1';
+            
             // Solo reactivar si TODOS los maestros están activos
-            if (maestros.persona_activa === 1 && maestros.proyecto_activo === 1 && maestros.tarea_activa === 1) {
+            if (personaActiva && proyectoActivo && tareaActiva) {
                 await pool.request()
                     .input('registro_id', sql.Int, registro.id)
                     .query('UPDATE controlhorario SET activo = 1 WHERE id = @registro_id');
@@ -1369,7 +1374,13 @@ app.put('/api/proyectos/:id/activate', authenticateToken, requireRole('admin'), 
             
             const maestros = checkMaestros.recordset[0];
             
-            if (maestros.persona_activa === 1 && maestros.proyecto_activo === 1 && maestros.tarea_activa === 1) {
+            // Normalizar valores BIT de SQL Server (pueden venir como boolean o número)
+            const personaActiva = maestros.persona_activa === true || maestros.persona_activa === 1 || maestros.persona_activa === '1';
+            const proyectoActivo = maestros.proyecto_activo === true || maestros.proyecto_activo === 1 || maestros.proyecto_activo === '1';
+            const tareaActiva = maestros.tarea_activa === true || maestros.tarea_activa === 1 || maestros.tarea_activa === '1';
+            
+            // Solo reactivar si TODOS los maestros están activos
+            if (personaActiva && proyectoActivo && tareaActiva) {
                 await pool.request()
                     .input('registro_id', sql.Int, registro.id)
                     .query('UPDATE controlhorario SET activo = 1 WHERE id = @registro_id');
@@ -1439,7 +1450,13 @@ app.put('/api/tareas/:id/activate', authenticateToken, requireRole('admin'), asy
             
             const maestros = checkMaestros.recordset[0];
             
-            if (maestros.persona_activa === 1 && maestros.proyecto_activo === 1 && maestros.tarea_activa === 1) {
+            // Normalizar valores BIT de SQL Server (pueden venir como boolean o número)
+            const personaActiva = maestros.persona_activa === true || maestros.persona_activa === 1 || maestros.persona_activa === '1';
+            const proyectoActivo = maestros.proyecto_activo === true || maestros.proyecto_activo === 1 || maestros.proyecto_activo === '1';
+            const tareaActiva = maestros.tarea_activa === true || maestros.tarea_activa === 1 || maestros.tarea_activa === '1';
+            
+            // Solo reactivar si TODOS los maestros están activos
+            if (personaActiva && proyectoActivo && tareaActiva) {
                 await pool.request()
                     .input('registro_id', sql.Int, registro.id)
                     .query('UPDATE controlhorario SET activo = 1 WHERE id = @registro_id');

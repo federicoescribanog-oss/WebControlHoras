@@ -1404,9 +1404,11 @@ async function activateMaster(type, value, id) {
             : `✅ ${typeName} reactivada.`;
         alert(message);
         
-        // Recargar maestros y registros
+        // Recargar maestros desde la BD para obtener el estado actualizado
         await loadMasters();
+        // Recargar registros desde la BD para mostrar los reactivados
         await loadFromAPI();
+        // Refrescar toda la UI
         refreshAll();
     } catch (err) {
         alert(`❌ Error al reactivar: ${err.message}`);
