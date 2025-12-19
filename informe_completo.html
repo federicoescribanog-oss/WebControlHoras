@@ -1789,15 +1789,28 @@ async function saveEntry() {
                 const personResponse = await fetch(`${API_PERSONAS_URL}/${personId}`, {
                     headers: getAuthHeaders()
                 });
+                if (personResponse.status === 401 || personResponse.status === 403) {
+                    logout();
+                    return;
+                }
                 if (personResponse.ok) {
                     const personData = await personResponse.json();
-                    if (personData.activo === 0 || personData.activo === false) {
+                    // Normalizar activo: puede venir como BIT (true/false), 0/1, o string '0'/'1'
+                    const activo = personData.activo === false || personData.activo === 0 || personData.activo === '0' ? 0 : 1;
+                    if (activo === 0) {
                         inactiveItems.push(`Persona: "${person}"`);
                     }
+                } else if (personResponse.status === 404) {
+                    inactiveItems.push(`Persona: "${person}" (no encontrada)`);
                 }
             } catch (err) {
                 console.error('Error al verificar persona:', err);
+                // Si hay error, no permitir guardar por seguridad
+                inactiveItems.push(`Persona: "${person}" (error al verificar)`);
             }
+        } else {
+            // Si no hay ID, no se puede verificar - no permitir guardar
+            inactiveItems.push(`Persona: "${person}" (ID no disponible)`);
         }
         
         // Verificar proyecto en la BD
@@ -1806,15 +1819,26 @@ async function saveEntry() {
                 const projectResponse = await fetch(`${API_PROYECTOS_URL}/${projectId}`, {
                     headers: getAuthHeaders()
                 });
+                if (projectResponse.status === 401 || projectResponse.status === 403) {
+                    logout();
+                    return;
+                }
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
-                    if (projectData.activo === 0 || projectData.activo === false) {
+                    // Normalizar activo: puede venir como BIT (true/false), 0/1, o string '0'/'1'
+                    const activo = projectData.activo === false || projectData.activo === 0 || projectData.activo === '0' ? 0 : 1;
+                    if (activo === 0) {
                         inactiveItems.push(`Proyecto: "${project}"`);
                     }
+                } else if (projectResponse.status === 404) {
+                    inactiveItems.push(`Proyecto: "${project}" (no encontrado)`);
                 }
             } catch (err) {
                 console.error('Error al verificar proyecto:', err);
+                inactiveItems.push(`Proyecto: "${project}" (error al verificar)`);
             }
+        } else {
+            inactiveItems.push(`Proyecto: "${project}" (ID no disponible)`);
         }
         
         // Verificar tarea en la BD
@@ -1823,15 +1847,26 @@ async function saveEntry() {
                 const taskResponse = await fetch(`${API_TAREAS_URL}/${taskId}`, {
                     headers: getAuthHeaders()
                 });
+                if (taskResponse.status === 401 || taskResponse.status === 403) {
+                    logout();
+                    return;
+                }
                 if (taskResponse.ok) {
                     const taskData = await taskResponse.json();
-                    if (taskData.activo === 0 || taskData.activo === false) {
+                    // Normalizar activo: puede venir como BIT (true/false), 0/1, o string '0'/'1'
+                    const activo = taskData.activo === false || taskData.activo === 0 || taskData.activo === '0' ? 0 : 1;
+                    if (activo === 0) {
                         inactiveItems.push(`Tarea: "${task}"`);
                     }
+                } else if (taskResponse.status === 404) {
+                    inactiveItems.push(`Tarea: "${task}" (no encontrada)`);
                 }
             } catch (err) {
                 console.error('Error al verificar tarea:', err);
+                inactiveItems.push(`Tarea: "${task}" (error al verificar)`);
             }
+        } else {
+            inactiveItems.push(`Tarea: "${task}" (ID no disponible)`);
         }
         
         if (inactiveItems.length > 0) {

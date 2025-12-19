@@ -924,6 +924,27 @@ app.get('/api/personas', authenticateToken, async (req, res) => {
     }
 });
 
+// GET /api/personas/:id - Obtener una persona por ID
+app.get('/api/personas/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id, nombre, email, activo, fecha_creacion FROM personas WHERE id = @id');
+        
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Persona no encontrada' });
+        }
+        
+        res.json(result.recordset[0]);
+    } catch (err) {
+        console.error('Error al obtener persona:', err);
+        res.status(500).json({ error: 'Error al obtener persona', details: err.message });
+    }
+});
+
 // POST /api/personas - Crear nueva persona (admin y gestor)
 app.post('/api/personas', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
@@ -986,6 +1007,27 @@ app.get('/api/proyectos', authenticateToken, async (req, res) => {
     }
 });
 
+// GET /api/proyectos/:id - Obtener un proyecto por ID
+app.get('/api/proyectos/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id, nombre, descripcion, activo, fecha_creacion FROM proyectos WHERE id = @id');
+        
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Proyecto no encontrado' });
+        }
+        
+        res.json(result.recordset[0]);
+    } catch (err) {
+        console.error('Error al obtener proyecto:', err);
+        res.status(500).json({ error: 'Error al obtener proyecto', details: err.message });
+    }
+});
+
 // POST /api/proyectos - Crear nuevo proyecto (admin y gestor)
 app.post('/api/proyectos', authenticateToken, requireRole('admin', 'gestor'), async (req, res) => {
     try {
@@ -1045,6 +1087,27 @@ app.get('/api/tareas', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error('Error al obtener tareas:', err);
         res.status(500).json({ error: 'Error al obtener tareas', details: err.message });
+    }
+});
+
+// GET /api/tareas/:id - Obtener una tarea por ID
+app.get('/api/tareas/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT id, nombre, descripcion, activo, fecha_creacion FROM tareas WHERE id = @id');
+        
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Tarea no encontrada' });
+        }
+        
+        res.json(result.recordset[0]);
+    } catch (err) {
+        console.error('Error al obtener tarea:', err);
+        res.status(500).json({ error: 'Error al obtener tarea', details: err.message });
     }
 });
 
