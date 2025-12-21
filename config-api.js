@@ -19,3 +19,5 @@ const API_BASE_URL = isDevelopment ? API_CONFIG.development : API_CONFIG.product
 // En el HTML, reemplazar la línea de API_BASE_URL con:
 // const API_BASE_URL = isDevelopment ? 'http://localhost:3000' : 'https://tu-api-backend.azurewebsites.net';
 
+
+

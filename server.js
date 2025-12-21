@@ -451,7 +451,7 @@ app.post('/api/auth/login', async (req, res) => {
         const result = await pool.request()
             .input('usuario', sql.NVarChar(100), usuario)
             .query(`
-                SELECT u.id, u.usuario, u.password_hash, u.rol_id, r.nombre as rol_nombre, u.activo
+                SELECT u.id, u.usuario, u.password_hash, u.rol_id, r.nombre as rol_nombre, u.activo, u.fecha_ultimo_acceso
                 FROM usuarios u
                 INNER JOIN roles r ON u.rol_id = r.id
                 WHERE u.usuario = @usuario AND u.activo = 1
@@ -469,7 +469,24 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
         }
         
-        // Actualizar último acceso
+        // Verificar si es el primer login (fecha_ultimo_acceso es NULL)
+        const isFirstLogin = user.fecha_ultimo_acceso === null;
+        
+        // Si es primer login, NO actualizar fecha_ultimo_acceso ni generar token
+        // El usuario debe cambiar la contraseña primero
+        if (isFirstLogin) {
+            return res.status(200).json({
+                mustChangePassword: true,
+                message: 'Debes cambiar tu contraseña antes de acceder',
+                user: {
+                    id: user.id,
+                    usuario: user.usuario,
+                    rol: user.rol_nombre
+                }
+            });
+        }
+        
+        // Si no es primer login, actualizar último acceso y generar token
         await pool.request()
             .input('id', sql.Int, user.id)
             .query('UPDATE usuarios SET fecha_ultimo_acceso = GETDATE() WHERE id = @id');
@@ -487,6 +504,7 @@ app.post('/api/auth/login', async (req, res) => {
         
         res.json({
             token,
+            mustChangePassword: false,
             user: {
                 id: user.id,
                 usuario: user.usuario,
@@ -683,19 +701,66 @@ app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Error al procesar nueva contraseña', details: err.message });
         }
 
-        // Actualizar contraseña (usar un nuevo request para evitar conflictos de parámetros)
+        // Verificar si es primer login (fecha_ultimo_acceso es NULL)
+        const checkFirstLogin = await pool.request()
+            .input('id', sql.Int, req.user.id)
+            .query('SELECT fecha_ultimo_acceso FROM usuarios WHERE id = @id');
+        
+        const isFirstLogin = checkFirstLogin.recordset[0] && checkFirstLogin.recordset[0].fecha_ultimo_acceso === null;
+        
+        // Actualizar contraseña y, si es primer login, actualizar fecha_ultimo_acceso
         try {
             const updateRequest = pool.request();
-            await updateRequest
-                .input('id', sql.Int, req.user.id)
-                .input('password_hash', sql.NVarChar(255), newPasswordHash)
-                .query('UPDATE usuarios SET password_hash = @password_hash WHERE id = @id');
+            if (isFirstLogin) {
+                // Si es primer login, actualizar contraseña Y fecha_ultimo_acceso
+                await updateRequest
+                    .input('id', sql.Int, req.user.id)
+                    .input('password_hash', sql.NVarChar(255), newPasswordHash)
+                    .query('UPDATE usuarios SET password_hash = @password_hash, fecha_ultimo_acceso = GETDATE() WHERE id = @id');
+            } else {
+                // Si no es primer login, solo actualizar contraseña
+                await updateRequest
+                    .input('id', sql.Int, req.user.id)
+                    .input('password_hash', sql.NVarChar(255), newPasswordHash)
+                    .query('UPDATE usuarios SET password_hash = @password_hash WHERE id = @id');
+            }
         } catch (err) {
             console.error('❌ Error al actualizar contraseña:', err);
             return res.status(500).json({ error: 'Error al actualizar contraseña en la base de datos', details: err.message });
         }
 
-        console.log('✅ Contraseña cambiada correctamente para usuario:', req.user.id);
+        console.log('✅ Contraseña cambiada correctamente para usuario:', req.user.id, isFirstLogin ? '(primer login completado)' : '');
+        
+        // Si es primer login, generar nuevo token para que pueda acceder
+        if (isFirstLogin) {
+            // Obtener información del usuario actualizada
+            const userInfo = await pool.request()
+                .input('id', sql.Int, req.user.id)
+                .query(`
+                    SELECT u.id, u.usuario, u.rol_id, r.nombre as rol_nombre
+                    FROM usuarios u
+                    INNER JOIN roles r ON u.rol_id = r.id
+                    WHERE u.id = @id
+                `);
+            
+            const updatedUser = userInfo.recordset[0];
+            const token = jwt.sign(
+                { 
+                    id: updatedUser.id, 
+                    usuario: updatedUser.usuario, 
+                    rol: updatedUser.rol_nombre 
+                },
+                JWT_SECRET,
+                { expiresIn: JWT_EXPIRES_IN }
+            );
+            
+            return res.json({ 
+                message: 'Contraseña cambiada correctamente. Ya puedes acceder a la aplicación.',
+                token: token,
+                firstLoginCompleted: true
+            });
+        }
+        
         res.json({ message: 'Contraseña cambiada correctamente' });
     } catch (err) {
         console.error('❌ Error al cambiar contraseña:', err);

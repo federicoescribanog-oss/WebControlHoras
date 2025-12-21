@@ -260,6 +260,55 @@
         </div>
     </div>
 
+    <!-- Modal Obligatorio Cambio Contraseña (Primer Login) -->
+    <div id="firstLoginPasswordModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 2000; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);">
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.5rem; color: var(--text-primary); margin-bottom: 0.5rem;">⚠️ Cambio de Contraseña Obligatorio</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">Es tu primer acceso. Debes cambiar tu contraseña antes de continuar.</p>
+            </div>
+            <div id="firstLoginPasswordError" style="background: rgba(255, 107, 107, 0.1); border: 1px solid var(--error); color: var(--error); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; display: none;"></div>
+            <form id="firstLoginPasswordForm" onsubmit="event.preventDefault(); changeFirstLoginPassword();">
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-size: 0.9rem; font-weight: 500;">Nueva Contraseña *</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="firstLoginNewPassword" required style="width: 100%; padding: 0.75rem; padding-right: 3rem; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 1rem;">
+                        <button type="button" class="password-toggle" id="toggleFirstLoginNewPassword" aria-label="Mostrar contraseña">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="password-requirements" id="firstLoginPasswordRequirements" style="margin-top: 0.75rem;">
+                        <strong style="font-size: 0.85rem; color: var(--text-secondary);">Requisitos de contraseña:</strong>
+                        <ul style="margin-top: 0.5rem; padding-left: 1.25rem; font-size: 0.85rem;">
+                            <li id="first-req-length" class="invalid" style="color: var(--error);">Mínimo 10 caracteres</li>
+                            <li id="first-req-uppercase" class="invalid" style="color: var(--error);">Al menos una mayúscula</li>
+                            <li id="first-req-number" class="invalid" style="color: var(--error);">Al menos un número</li>
+                            <li id="first-req-special" class="invalid" style="color: var(--error);">Al menos un carácter especial (!@#$%^&*)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-size: 0.9rem; font-weight: 500;">Confirmar Nueva Contraseña *</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="firstLoginConfirmPassword" required style="width: 100%; padding: 0.75rem; padding-right: 3rem; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 1rem;">
+                        <button type="button" class="password-toggle" id="toggleFirstLoginConfirmPassword" aria-label="Mostrar contraseña">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                    <button type="submit" style="background: var(--accent); color: var(--bg-primary); padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%;">Cambiar Contraseña</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // Configuración API
         const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -367,6 +416,17 @@
 
                 if (!response.ok) {
                     throw new Error(data.error || `Error al iniciar sesión (${response.status})`);
+                }
+
+                // Verificar si debe cambiar la contraseña (primer login)
+                if (data.mustChangePassword) {
+                    // Guardar datos del usuario temporalmente (sin token)
+                    localStorage.setItem('pendingUserData', JSON.stringify(data.user));
+                    localStorage.setItem('pendingPassword', password); // Guardar contraseña temporalmente para el cambio
+                    
+                    // Mostrar modal obligatorio de cambio de contraseña
+                    showFirstLoginPasswordModal();
+                    return;
                 }
 
                 // Guardar token y datos del usuario
