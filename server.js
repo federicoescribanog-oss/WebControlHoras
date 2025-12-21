@@ -159,11 +159,11 @@ async function loadSecrets() {
         JWT_SECRET = await getSecret('JWT-SECRET');
         
         // Cargar configuración de email (opcional, no crítico)
-        emailConfig.host = await getSecret('EMAIL-HOST') || process.env.EMAIL_HOST || 'smtp.office365.com';
-        emailConfig.port = parseInt(await getSecret('EMAIL-PORT') || process.env.EMAIL_PORT || '587');
+        emailConfig.host = await getSecret('EMAILHOST') || process.env.EMAIL_HOST || 'smtp.office365.com';
+        emailConfig.port = parseInt(await getSecret('EMAILPORT') || process.env.EMAIL_PORT || '587');
         emailConfig.secure = (await getSecret('EMAIL-SECURE') || process.env.EMAIL_SECURE || 'false') === 'true';
-        emailConfig.user = await getSecret('EMAIL-USER') || process.env.EMAIL_USER;
-        emailConfig.password = await getSecret('EMAIL-PASSWORD') || process.env.EMAIL_PASSWORD;
+        emailConfig.user = await getSecret('EMAILUSER') || process.env.EMAIL_USER;
+        emailConfig.password = await getSecret('EMAILPASSWORD') || process.env.EMAIL_PASSWORD;
         emailConfig.from = await getSecret('EMAIL-FROM') || process.env.EMAIL_FROM || emailConfig.user;
         
         // Validar que JWT_SECRET esté configurado
