@@ -142,7 +142,8 @@ let emailConfig = {
     secure: null,
     user: null,
     password: null,
-    from: null
+    from: null,
+    bcc: null // Copia oculta (CCO)
 };
 let emailTransporter = null;
 
@@ -165,6 +166,7 @@ async function loadSecrets() {
         emailConfig.user = await getSecret('EMAILUSER') || process.env.EMAIL_USER;
         emailConfig.password = await getSecret('EMAILPASSWORD') || process.env.EMAIL_PASSWORD;
         emailConfig.from = await getSecret('EMAIL-FROM') || process.env.EMAIL_FROM || emailConfig.user;
+        emailConfig.bcc = await getSecret('EMAIL-CCO') || process.env.EMAIL_CCO || null;
         
         // Validar que JWT_SECRET esté configurado
         if (!JWT_SECRET) {
@@ -206,6 +208,7 @@ async function loadSecrets() {
         emailConfig.user = process.env.EMAIL_USER;
         emailConfig.password = process.env.EMAIL_PASSWORD;
         emailConfig.from = process.env.EMAIL_FROM || emailConfig.user;
+        emailConfig.bcc = process.env.EMAIL_CCO || null;
         
         if (emailConfig.user && emailConfig.password) {
             emailTransporter = nodemailer.createTransport({
@@ -224,8 +227,8 @@ async function loadSecrets() {
     }
 }
 
-// ========== FUNCIÓN PARA ENVIAR CORREO DE BIENVENIDA ==========
-async function sendWelcomeEmail(email, password, rolNombre) {
+// ========== FUNCIÓN PARA ENVIAR CORREO DE RESTABLECIMIENTO DE CONTRASEÑA ==========
+async function sendPasswordResetEmail(email, newPassword) {
     // Si no hay configuración de email, no hacer nada
     if (!emailTransporter || !emailConfig.user) {
         console.log('⚠️ No se puede enviar correo: configuración de email no disponible');
@@ -236,8 +239,98 @@ async function sendWelcomeEmail(email, password, rolNombre) {
     
     // Crear contenido del correo
     const mailOptions = {
-        from: emailConfig.from,
+        from: emailConfig.from || emailConfig.user,
         to: email,
+        bcc: emailConfig.bcc ? emailConfig.bcc.split(',').map(e => e.trim()).filter(e => e) : undefined,
+        subject: 'Restablecimiento de Contraseña - Control de Horas Logicalis',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background-color: #0a0e17; color: #e8eaed; padding: 20px; text-align: center; }
+                    .content { background-color: #f9f9f9; padding: 20px; }
+                    .info-box { background-color: #fff; border-left: 4px solid #ff6b6b; padding: 15px; margin: 15px 0; }
+                    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Control de Horas - Logicalis</h1>
+                    </div>
+                    <div class="content">
+                        <p>Buenos días <strong>${email}</strong>,</p>
+                        <p>Se ha restablecido tu contraseña en la web de control de horas de Logicalis.</p>
+                        
+                        <div class="info-box">
+                            <p><strong>URL de acceso:</strong> <a href="${webUrl}">${webUrl}</a></p>
+                            <p><strong>Usuario:</strong> ${email}</p>
+                            <p><strong>Nueva Contraseña:</strong> ${newPassword}</p>
+                        </div>
+                        
+                        <p><strong>Importante:</strong> Por seguridad, te recomendamos cambiar esta contraseña después de iniciar sesión.</p>
+                        <p>Si no has solicitado este restablecimiento, ponte en contacto con <strong>Federico Escribano</strong> de inmediato.</p>
+                        <p>Gracias.</p>
+                    </div>
+                    <div class="footer">
+                        <p>Este es un correo automático, por favor no responda.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `,
+        text: `
+Buenos días ${email},
+
+Se ha restablecido tu contraseña en la web de control de horas de Logicalis.
+
+URL de acceso: ${webUrl}
+Usuario: ${email}
+Nueva Contraseña: ${newPassword}
+
+Importante: Por seguridad, te recomendamos cambiar esta contraseña después de iniciar sesión.
+
+Si no has solicitado este restablecimiento, ponte en contacto con Federico Escribano de inmediato.
+
+Gracias.
+        `
+    };
+    
+    try {
+        const info = await emailTransporter.sendMail(mailOptions);
+        console.log(`✅ Correo de restablecimiento enviado a ${email}:`, info.messageId);
+    } catch (error) {
+        console.error(`❌ Error al enviar correo de restablecimiento a ${email}:`, error.message);
+        throw error;
+    }
+}
+
+// ========== FUNCIÓN PARA ENVIAR CORREO DE BIENVENIDA ==========
+async function sendWelcomeEmail(email, password, rolNombre, createdByEmail = null) {
+    // Si no hay configuración de email, no hacer nada
+    if (!emailTransporter || !emailConfig.user) {
+        console.log('⚠️ No se puede enviar correo: configuración de email no disponible');
+        return;
+    }
+    
+    const webUrl = process.env.WEB_URL || 'https://webcontrolhoras.z6.web.core.windows.net';
+    
+    // Preparar lista de destinatarios en CC (copia)
+    const ccRecipients = [];
+    if (createdByEmail) {
+        ccRecipients.push(createdByEmail);
+    }
+    
+    // Crear contenido del correo
+    const mailOptions = {
+        from: emailConfig.from || emailConfig.user,
+        to: email,
+        cc: ccRecipients.length > 0 ? ccRecipients : undefined,
+        bcc: emailConfig.bcc ? emailConfig.bcc.split(',').map(e => e.trim()).filter(e => e) : undefined,
         subject: 'Bienvenido a Control de Horas - Logicalis',
         html: `
             <!DOCTYPE html>
@@ -565,16 +658,14 @@ app.post('/api/auth/reset-password', async (req, res) => {
                 WHERE usuario = @usuario
             `);
 
-        // TODO: Aquí deberías enviar la contraseña por email
-        // Por ahora, la devolvemos en la respuesta (solo para desarrollo/testing)
-        // En producción, esto debería enviarse por email
-        console.log(`⚠️ NUEVA CONTRASEÑA para ${usuario}: ${newPassword}`);
-        console.log('⚠️ IMPORTANTE: En producción, esto debe enviarse por email, no mostrarse en logs');
+        // Enviar correo con la nueva contraseña
+        await sendPasswordResetEmail(usuario, newPassword).catch(err => {
+            console.error('❌ Error al enviar correo de restablecimiento:', err.message);
+            // No fallar el proceso si el correo falla, pero registrar el error
+        });
 
         res.json({ 
-            message: 'Se ha generado una nueva contraseña. Por favor, revisa tu email.',
-            // En producción, eliminar esta línea:
-            password: newPassword // Solo para desarrollo/testing
+            message: 'Se ha generado una nueva contraseña. Por favor, revisa tu email.'
         });
 
     } catch (err) {
@@ -1011,7 +1102,8 @@ app.post('/api/usuarios', authenticateToken, requireRole('admin'), async (req, r
         const newId = result.recordset[0].id;
         
         // Enviar correo de bienvenida (no bloquea la respuesta si falla)
-        sendWelcomeEmail(usuario, password, rolNombre).catch(err => {
+        // Incluir el email del usuario que creó este nuevo usuario en copia (CC)
+        sendWelcomeEmail(usuario, password, rolNombre, req.user.usuario).catch(err => {
             console.error('❌ Error al enviar correo de bienvenida:', err.message);
             // No fallar la creación del usuario si el correo falla
         });
