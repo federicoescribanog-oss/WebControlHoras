@@ -463,6 +463,203 @@
             errorMessage.classList.add('show');
         }
 
+        // Función para mostrar el modal de cambio de contraseña en primer login
+        function showFirstLoginPasswordModal() {
+            const modal = document.getElementById('firstLoginPasswordModal');
+            modal.style.display = 'flex';
+            
+            // Limpiar campos
+            document.getElementById('firstLoginNewPassword').value = '';
+            document.getElementById('firstLoginConfirmPassword').value = '';
+            document.getElementById('firstLoginPasswordError').style.display = 'none';
+            
+            // Resetear requisitos de contraseña
+            updateFirstLoginPasswordRequirements();
+            
+            // Ocultar loading y habilitar botón de login
+            loading.classList.remove('show');
+            loading.classList.add('hidden');
+            loginBtn.disabled = false;
+        }
+
+        // Función para validar contraseña
+        function validatePassword(password) {
+            if (password.length < 10) {
+                return { valid: false, message: 'La contraseña debe tener al menos 10 caracteres' };
+            }
+            if (!/[A-Z]/.test(password)) {
+                return { valid: false, message: 'La contraseña debe contener al menos una mayúscula' };
+            }
+            if (!/[0-9]/.test(password)) {
+                return { valid: false, message: 'La contraseña debe contener al menos un número' };
+            }
+            if (!/[!@#$%^&*]/.test(password)) {
+                return { valid: false, message: 'La contraseña debe contener al menos un carácter especial (!@#$%^&*)' };
+            }
+            return { valid: true };
+        }
+
+        // Función para actualizar requisitos de contraseña en tiempo real
+        function updateFirstLoginPasswordRequirements() {
+            const password = document.getElementById('firstLoginNewPassword').value;
+            const requirements = {
+                length: password.length >= 10,
+                uppercase: /[A-Z]/.test(password),
+                number: /[0-9]/.test(password),
+                special: /[!@#$%^&*]/.test(password)
+            };
+
+            const lengthEl = document.getElementById('first-req-length');
+            const uppercaseEl = document.getElementById('first-req-uppercase');
+            const numberEl = document.getElementById('first-req-number');
+            const specialEl = document.getElementById('first-req-special');
+
+            if (lengthEl) {
+                lengthEl.className = requirements.length ? 'valid' : 'invalid';
+                lengthEl.style.color = requirements.length ? 'var(--success)' : 'var(--error)';
+            }
+            if (uppercaseEl) {
+                uppercaseEl.className = requirements.uppercase ? 'valid' : 'invalid';
+                uppercaseEl.style.color = requirements.uppercase ? 'var(--success)' : 'var(--error)';
+            }
+            if (numberEl) {
+                numberEl.className = requirements.number ? 'valid' : 'invalid';
+                numberEl.style.color = requirements.number ? 'var(--success)' : 'var(--error)';
+            }
+            if (specialEl) {
+                specialEl.className = requirements.special ? 'valid' : 'invalid';
+                specialEl.style.color = requirements.special ? 'var(--success)' : 'var(--error)';
+            }
+        }
+
+        // Función para cambiar contraseña en primer login
+        async function changeFirstLoginPassword() {
+            const errorDiv = document.getElementById('firstLoginPasswordError');
+            const newPassword = document.getElementById('firstLoginNewPassword').value;
+            const confirmPassword = document.getElementById('firstLoginConfirmPassword').value;
+            
+            // Obtener datos del usuario desde localStorage
+            const pendingUserData = localStorage.getItem('pendingUserData');
+            const pendingPassword = localStorage.getItem('pendingPassword');
+            
+            if (!pendingUserData || !pendingPassword) {
+                errorDiv.textContent = 'Error: Sesión expirada. Por favor, inicia sesión nuevamente.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            const user = JSON.parse(pendingUserData);
+
+            // Validar campos
+            if (!newPassword || !confirmPassword) {
+                errorDiv.textContent = 'Por favor, completa todos los campos';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validar que las contraseñas coincidan
+            if (newPassword !== confirmPassword) {
+                errorDiv.textContent = 'Las contraseñas no coinciden';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validar contraseña
+            const passwordValidation = validatePassword(newPassword);
+            if (!passwordValidation.valid) {
+                errorDiv.textContent = passwordValidation.message;
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validar que la nueva contraseña sea diferente a la actual
+            if (newPassword === pendingPassword) {
+                errorDiv.textContent = 'La nueva contraseña debe ser diferente a la contraseña actual';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/change-password-first-login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        usuario: user.usuario,
+                        currentPassword: pendingPassword,
+                        newPassword: newPassword
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error al cambiar contraseña');
+                }
+
+                // Limpiar datos temporales
+                localStorage.removeItem('pendingUserData');
+                localStorage.removeItem('pendingPassword');
+
+                // Guardar token y datos del usuario
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('userData', JSON.stringify(data.user));
+
+                // Redirigir a la aplicación principal
+                window.location.href = 'informe_completo.html';
+
+            } catch (err) {
+                console.error('Error al cambiar contraseña:', err);
+                errorDiv.textContent = err.message || 'Error al cambiar contraseña. Por favor, intenta nuevamente.';
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        // Toggle mostrar/ocultar contraseñas en el modal de primer login
+        const toggleFirstLoginNewPassword = document.getElementById('toggleFirstLoginNewPassword');
+        const firstLoginNewPasswordInput = document.getElementById('firstLoginNewPassword');
+        
+        if (toggleFirstLoginNewPassword && firstLoginNewPasswordInput) {
+            toggleFirstLoginNewPassword.addEventListener('click', () => {
+                const type = firstLoginNewPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                firstLoginNewPasswordInput.setAttribute('type', type);
+                
+                toggleFirstLoginNewPassword.innerHTML = type === 'password' 
+                    ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                       </svg>`
+                    : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                       </svg>`;
+            });
+            
+            // Actualizar requisitos en tiempo real
+            firstLoginNewPasswordInput.addEventListener('input', updateFirstLoginPasswordRequirements);
+        }
+
+        const toggleFirstLoginConfirmPassword = document.getElementById('toggleFirstLoginConfirmPassword');
+        const firstLoginConfirmPasswordInput = document.getElementById('firstLoginConfirmPassword');
+        
+        if (toggleFirstLoginConfirmPassword && firstLoginConfirmPasswordInput) {
+            toggleFirstLoginConfirmPassword.addEventListener('click', () => {
+                const type = firstLoginConfirmPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                firstLoginConfirmPasswordInput.setAttribute('type', type);
+                
+                toggleFirstLoginConfirmPassword.innerHTML = type === 'password' 
+                    ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                       </svg>`
+                    : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                       </svg>`;
+            });
+        }
+
         // Permitir Enter para enviar
         document.getElementById('password').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {

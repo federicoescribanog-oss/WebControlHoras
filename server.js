@@ -625,6 +625,88 @@ function generateSecurePassword() {
     return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
+// POST /api/auth/change-password-first-login - Cambiar contraseña en primer login (sin autenticación)
+app.post('/api/auth/change-password-first-login', async (req, res) => {
+    try {
+        const { usuario, currentPassword, newPassword } = req.body;
+
+        if (!usuario || !currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Usuario, contraseña actual y nueva contraseña requeridos' });
+        }
+
+        // Validar nueva contraseña
+        const passwordValidation = validatePassword(newPassword);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({ error: passwordValidation.message });
+        }
+
+        const pool = await getPool();
+        
+        // Buscar usuario y verificar que es primer login
+        const userResult = await pool.request()
+            .input('usuario', sql.NVarChar(100), usuario)
+            .query(`
+                SELECT u.id, u.usuario, u.password_hash, u.rol_id, r.nombre as rol_nombre, u.fecha_ultimo_acceso
+                FROM usuarios u
+                INNER JOIN roles r ON u.rol_id = r.id
+                WHERE u.usuario = @usuario AND u.activo = 1
+            `);
+
+        if (!userResult || !userResult.recordset || userResult.recordset.length === 0) {
+            return res.status(401).json({ error: 'Usuario no encontrado o inactivo' });
+        }
+
+        const user = userResult.recordset[0];
+
+        // Verificar que sea primer login (fecha_ultimo_acceso es NULL)
+        if (user.fecha_ultimo_acceso !== null) {
+            return res.status(403).json({ error: 'Esta operación solo está disponible para usuarios en su primer inicio de sesión' });
+        }
+
+        // Verificar contraseña actual
+        const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+        }
+
+        // Hash de nueva contraseña
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+        // Actualizar contraseña y fecha_ultimo_acceso (marcando que ya no es primer login)
+        await pool.request()
+            .input('usuario', sql.NVarChar(100), usuario)
+            .input('password_hash', sql.NVarChar(255), newPasswordHash)
+            .query('UPDATE usuarios SET password_hash = @password_hash, fecha_ultimo_acceso = GETDATE() WHERE usuario = @usuario');
+
+        console.log('✅ Contraseña cambiada en primer login para usuario:', usuario);
+
+        // Generar token para que pueda acceder
+        const token = jwt.sign(
+            { 
+                id: user.id, 
+                usuario: user.usuario, 
+                rol: user.rol_nombre 
+            },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        return res.json({ 
+            message: 'Contraseña cambiada correctamente. Ya puedes acceder a la aplicación.',
+            token: token,
+            firstLoginCompleted: true,
+            user: {
+                id: user.id,
+                usuario: user.usuario,
+                rol: user.rol_nombre
+            }
+        });
+    } catch (err) {
+        console.error('❌ Error al cambiar contraseña en primer login:', err);
+        res.status(500).json({ error: 'Error al cambiar contraseña', details: err.message });
+    }
+});
+
 // POST /api/auth/change-password - Cambiar contraseña del usuario actual
 app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
     try {
